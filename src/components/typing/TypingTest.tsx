@@ -463,7 +463,7 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
                 <div className="p-2.5 rounded-xl bg-teal-500/10 border border-teal-500/20 shadow-[0_0_15px_-3px_rgba(20,184,166,0.3)] group-hover:shadow-[0_0_20px_-3px_rgba(20,184,166,0.5)] transition-shadow duration-300">
                     <Type className="w-6 h-6 text-teal-400" />
                 </div>
-                <h1 className="font-bold text-2xl tracking-tighter text-white">
+                <h1 className="font-bold text-2xl tracking-tighter text-foreground">
                     TypeSpeak<span className="text-teal-400">Pro</span>
                 </h1>
             </div>
@@ -476,11 +476,11 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
 
                 {/* Config Options - Fade out when active */}
                 <div className={cn(
-                    "flex gap-2 bg-secondary/30 p-1 rounded-full backdrop-blur-md border border-white/5 transition-all duration-500 ease-in-out",
+                    "flex gap-2 bg-secondary/30 p-1 rounded-full backdrop-blur-md border border-border transition-all duration-500 ease-in-out",
                     isActive ? "opacity-0 pointer-events-none translate-y-[-10px]" : "opacity-100 translate-y-0"
                 )}>
                     {/* Mode Selector */}
-                    <div className="flex items-center gap-1 pr-2 border-r border-white/10 mr-2">
+                    <div className="flex items-center gap-1 pr-2 border-r border-border mr-2">
                         <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -549,7 +549,7 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
                             {time}s
                         </button>
                     ))}
-                    <div className="w-[1px] h-4 bg-white/10 mx-2 self-center" />
+                    <div className="w-[1px] h-4 bg-border mx-2 self-center" />
 
                     {/* Punctuation/Numbers toggle for ALL modes */}
                     <div className="flex items-center gap-1">
@@ -591,7 +591,7 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
                         ))}
                     </div>
 
-                    <div className="w-[1px] h-4 bg-white/10 mx-2 self-center" />
+                    <div className="w-[1px] h-4 bg-border mx-2 self-center" />
 
                     {/* Leaderboard Button */}
                     <TooltipProvider>
@@ -670,7 +670,7 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
             <div
                 ref={containerRef}
                 className={cn(
-                    "relative h-[280px] w-full overflow-hidden flex items-start justify-start text-3xl leading-[4rem] tracking-wide font-mono outline-none cursor-default rounded-xl bg-black/20 p-4 border border-white/5",
+                    "relative h-[280px] w-full overflow-hidden flex items-start justify-start text-3xl leading-[4rem] tracking-wide font-mono outline-none cursor-default rounded-xl bg-card p-4 border border-border",
                     isFinished ? "blur-sm opacity-50 grayscale pointer-events-none" : ""
                 )}
             >
@@ -753,8 +753,8 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
                                 <span className="w-2 h-2 bg-teal-400 rounded-full animate-ping"></span>
                             </div>
                         </div>
-                        <h2 className="text-2xl font-bold text-white tracking-widest uppercase animate-pulse">Finding Opponent...</h2>
-                        <p className="text-neutral-500 text-sm">Searching global ranked queue</p>
+                        <h2 className="text-2xl font-bold text-foreground tracking-widest uppercase animate-pulse">Finding Opponent...</h2>
+                        <p className="text-muted-foreground text-sm">Searching global ranked queue</p>
                     </div>
                 </div>
             )}

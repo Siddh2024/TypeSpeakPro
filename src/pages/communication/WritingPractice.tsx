@@ -53,13 +53,13 @@ const WritingPractice = () => {
     };
 
     return (
-        <div className="min-h-screen bg-neutral-950 text-white font-sans selection:bg-teal-500/30 flex flex-col">
+        <div className="min-h-screen bg-background text-foreground font-sans selection:bg-teal-500/30 flex flex-col">
             <Navbar forceOpaque={true} />
 
             <main className="flex-1 container mx-auto px-4 pt-24 pb-12">
                 <Button
                     variant="ghost"
-                    className="mb-8 hover:text-teal-400 text-neutral-400 pl-0"
+                    className="mb-8 hover:text-teal-400 text-muted-foreground pl-0"
                     onClick={() => navigate('/voice-practice/communication')}
                 >
                     <ArrowLeft className="w-4 h-4 mr-2" /> Back to Modules
@@ -68,13 +68,13 @@ const WritingPractice = () => {
                 <div className="flex flex-col lg:flex-row gap-8 max-w-6xl mx-auto">
                     {/* Left Panel: Input */}
                     <div className="flex-1 space-y-6">
-                        <Card className="bg-neutral-900/50 border-white/5">
+                        <Card className="bg-card border-border">
                             <CardHeader>
                                 <div className="flex justify-between items-start mb-2">
                                     <div className="flex items-center gap-2 text-teal-400 text-sm font-medium uppercase tracking-wider">
                                         <PenTool className="w-4 h-4" /> Writing Prompt
                                     </div>
-                                    <Button variant="ghost" size="sm" onClick={handleNewTopic} className="text-neutral-400 hover:text-white">
+                                    <Button variant="ghost" size="sm" onClick={handleNewTopic} className="text-muted-foreground hover:text-white">
                                         <RefreshCw className="w-4 h-4 mr-2" /> New Topic
                                     </Button>
                                 </div>

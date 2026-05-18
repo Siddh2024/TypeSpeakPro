@@ -44,7 +44,7 @@ const Practice = () => {
                             variant="ghost"
                             size="icon"
                             onClick={() => setIsMenuOpen(!isMenuOpen)}
-                            className="text-muted-foreground hover:text-white hover:bg-white/5 transition-all"
+                            className="text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
                         >
                             <Menu className="w-6 h-6" />
                         </Button>
@@ -87,7 +87,7 @@ const Practice = () => {
                             </span>
                             <span className="text-sm font-medium text-muted-foreground">Premium Typing Experience</span>
                         </div>
-                        <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white via-neutral-200 to-neutral-400">
+                        <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-foreground via-foreground/80 to-foreground/60">
                             Master Your <span className="text-teal-400">Keystrokes</span>
                         </h1>
                         <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
@@ -102,7 +102,7 @@ const Practice = () => {
                         {/* Solo Mode Card */}
                         <div
                             onClick={() => setSelectedMode('solo')}
-                            className="group relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-6 transition-all cursor-pointer hover:border-primary/50 hover:shadow-[0_0_40px_-10px_rgba(255,255,255,0.1)] hover:-translate-y-1"
+                            className="group relative overflow-hidden rounded-3xl border border-border bg-card/50 p-6 transition-all cursor-pointer hover:border-primary/50 hover:shadow-[0_0_40px_-10px_rgba(255,255,255,0.1)] hover:-translate-y-1"
                         >
                             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
@@ -111,7 +111,7 @@ const Practice = () => {
                                     <User className="w-6 h-6" />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-bold mb-2 text-white group-hover:text-primary transition-colors">Solo Practice</h2>
+                                    <h2 className="text-xl font-bold mb-2 text-foreground group-hover:text-primary transition-colors">Solo Practice</h2>
                                     <p className="text-sm text-muted-foreground leading-relaxed">
                                         Focus on your own speed and accuracy. Customize your test settings and track progress.
                                     </p>
@@ -125,7 +125,7 @@ const Practice = () => {
                         {/* Ranked Race (AI) Card */}
                         <div
                             onClick={() => setIsRankedConfigOpen(true)}
-                            className="group relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-6 transition-all cursor-pointer hover:border-teal-500/50 hover:shadow-[0_0_40px_-10px_rgba(45,212,191,0.1)] hover:-translate-y-1"
+                            className="group relative overflow-hidden rounded-3xl border border-border bg-card/50 p-6 transition-all cursor-pointer hover:border-teal-500/50 hover:shadow-[0_0_40px_-10px_rgba(45,212,191,0.1)] hover:-translate-y-1"
                         >
                             <div className="absolute inset-0 bg-gradient-to-br from-teal-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
@@ -134,7 +134,7 @@ const Practice = () => {
                                     <Trophy className="w-6 h-6" />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-bold mb-2 text-white group-hover:text-teal-400 transition-colors">Ranked Race</h2>
+                                    <h2 className="text-xl font-bold mb-2 text-foreground group-hover:text-teal-400 transition-colors">Ranked Race</h2>
                                     <p className="text-sm text-muted-foreground leading-relaxed">
                                         Compete against AI opponents in a ranked ladder. Prove your skill and earn your rank.
                                     </p>
@@ -148,7 +148,7 @@ const Practice = () => {
                         {/* Ranked with Friend (Real Multiplayer) Card */}
                         <div
                             onClick={() => setSelectedMode('multiplayer')}
-                            className="group relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-6 transition-all cursor-pointer hover:border-violet-500/50 hover:shadow-[0_0_40px_-10px_rgba(139,92,246,0.1)] hover:-translate-y-1"
+                            className="group relative overflow-hidden rounded-3xl border border-border bg-card/50 p-6 transition-all cursor-pointer hover:border-violet-500/50 hover:shadow-[0_0_40px_-10px_rgba(139,92,246,0.1)] hover:-translate-y-1"
                         >
                             <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
@@ -157,7 +157,7 @@ const Practice = () => {
                                     <Swords className="w-6 h-6" />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-bold mb-2 text-white group-hover:text-violet-400 transition-colors">Ranked w/ Friends</h2>
+                                    <h2 className="text-xl font-bold mb-2 text-foreground group-hover:text-violet-400 transition-colors">Ranked w/ Friends</h2>
                                     <p className="text-sm text-muted-foreground leading-relaxed">
                                         Create a private room or join a friend via code. Race head-to-head in real-time.
                                     </p>

@@ -140,12 +140,12 @@ const Dashboard = () => {
     };
 
     return (
-        <div className="min-h-screen bg-neutral-950 text-white font-sans fade-in selection:bg-teal-500/30">
+        <div className="min-h-screen bg-background text-foreground font-sans fade-in selection:bg-teal-500/30">
             <Navbar />
             <div className="max-w-7xl mx-auto space-y-8 p-6 md:p-12 pt-24 mt-16">
 
                 {/* Profile Hero Section */}
-                <div className="relative overflow-hidden rounded-3xl bg-neutral-900 border border-white/10 p-8 md:p-12 shadow-2xl">
+                <div className="relative overflow-hidden rounded-3xl bg-card border border-border p-8 md:p-12 shadow-2xl">
                     <div className="absolute inset-0 bg-gradient-to-br from-teal-500/10 via-purple-500/5 to-transparent pointer-events-none" />
                     <div className="relative z-10 flex flex-col md:flex-row items-center md:items-start gap-8">
                         {/* Avatar */}
@@ -155,11 +155,11 @@ const Dashboard = () => {
                                 <img
                                     src={user.picture}
                                     alt={user.name}
-                                    className="relative w-32 h-32 rounded-full border-4 border-neutral-900 object-cover shadow-xl"
+                                    className="relative w-32 h-32 rounded-full border-4 border-card object-cover shadow-xl"
                                 />
                             ) : (
-                                <div className="relative w-32 h-32 rounded-full border-4 border-neutral-900 bg-neutral-800 flex items-center justify-center shadow-xl">
-                                    <User className="w-12 h-12 text-neutral-400" />
+                                <div className="relative w-32 h-32 rounded-full border-4 border-card bg-muted flex items-center justify-center shadow-xl">
+                                    <User className="w-12 h-12 text-muted-foreground" />
                                 </div>
                             )}
                         </div>
@@ -167,11 +167,11 @@ const Dashboard = () => {
                         {/* User Details */}
                         <div className="text-center md:text-left space-y-4 flex-1">
                             <div>
-                                <h1 className="text-4xl md:text-5xl font-black tracking-tight text-white mb-2">
+                                <h1 className="text-4xl md:text-5xl font-black tracking-tight text-foreground mb-2">
                                     {user?.name || "Guest User"}
                                 </h1>
-                                <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-neutral-400">
-                                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10">
+                                <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-muted-foreground">
+                                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-muted border border-border">
                                         <Mail className="w-4 h-4" />
                                         <span className="text-sm">{user?.email || "No email linked"}</span>
                                     </div>
@@ -183,9 +183,9 @@ const Dashboard = () => {
                             </div>
 
                             <div className="flex gap-4 mt-6 justify-center md:justify-start">
-                                <div className="text-center p-3 rounded-xl bg-white/5 border border-white/5 min-w-[100px]">
-                                    <div className="text-2xl font-bold text-white">#{stats.rank > 0 ? stats.rank : '-'}</div>
-                                    <div className="text-xs text-neutral-400 uppercase tracking-widest mt-1">Global Rank</div>
+                                <div className="text-center p-3 rounded-xl bg-muted border border-border min-w-[100px]">
+                                    <div className="text-2xl font-bold text-foreground">#{stats.rank > 0 ? stats.rank : '-'}</div>
+                                    <div className="text-xs text-muted-foreground uppercase tracking-widest mt-1">Global Rank</div>
                                 </div>
                             </div>
                         </div>
@@ -194,83 +194,83 @@ const Dashboard = () => {
 
                 {/* Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <Card className="bg-neutral-900/50 border-white/5 backdrop-blur-sm hover:bg-neutral-900/80 transition-all duration-300 group">
+                    <Card className="bg-card border-border backdrop-blur-sm hover:bg-muted transition-all duration-300 group">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-neutral-400 group-hover:text-teal-400 transition-colors">
+                            <CardTitle className="text-sm font-medium text-muted-foreground group-hover:text-teal-400 transition-colors">
                                 Average Speed
                             </CardTitle>
                             <Zap className="h-4 w-4 text-teal-500" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-white">{stats.avgWpm} WPM</div>
-                            <p className="text-xs text-neutral-500 mt-1">Best: {stats.bestWpm} WPM</p>
+                            <div className="text-2xl font-bold text-foreground">{stats.avgWpm} WPM</div>
+                            <p className="text-xs text-muted-foreground mt-1">Best: {stats.bestWpm} WPM</p>
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-neutral-900/50 border-white/5 backdrop-blur-sm hover:bg-neutral-900/80 transition-all duration-300 group">
+                    <Card className="bg-card border-border backdrop-blur-sm hover:bg-muted transition-all duration-300 group">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-neutral-400 group-hover:text-purple-400 transition-colors">
+                            <CardTitle className="text-sm font-medium text-muted-foreground group-hover:text-purple-400 transition-colors">
                                 Accuracy
                             </CardTitle>
                             <Activity className="h-4 w-4 text-purple-500" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-white">{stats.avgAccuracy}%</div>
-                            <p className="text-xs text-neutral-500 mt-1">Global Avg: 92%</p>
+                            <div className="text-2xl font-bold text-foreground">{stats.avgAccuracy}%</div>
+                            <p className="text-xs text-muted-foreground mt-1">Global Avg: 92%</p>
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-neutral-900/50 border-white/5 backdrop-blur-sm hover:bg-neutral-900/80 transition-all duration-300 group">
+                    <Card className="bg-card border-border backdrop-blur-sm hover:bg-muted transition-all duration-300 group">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-neutral-400 group-hover:text-blue-400 transition-colors">
+                            <CardTitle className="text-sm font-medium text-muted-foreground group-hover:text-blue-400 transition-colors">
                                 Time Practiced
                             </CardTitle>
                             <Keyboard className="h-4 w-4 text-blue-500" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-white">{formatTime(stats.totalTime)}</div>
-                            <p className="text-xs text-neutral-500 mt-1">Keep it up!</p>
+                            <div className="text-2xl font-bold text-foreground">{formatTime(stats.totalTime)}</div>
+                            <p className="text-xs text-muted-foreground mt-1">Keep it up!</p>
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-neutral-900/50 border-white/5 backdrop-blur-sm hover:bg-neutral-900/80 transition-all duration-300 group">
+                    <Card className="bg-card border-border backdrop-blur-sm hover:bg-muted transition-all duration-300 group">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-neutral-400 group-hover:text-yellow-400 transition-colors">
+                            <CardTitle className="text-sm font-medium text-muted-foreground group-hover:text-yellow-400 transition-colors">
                                 Tests Completed
                             </CardTitle>
                             <Trophy className="h-4 w-4 text-yellow-500" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-white">{stats.testsCompleted}</div>
-                            <p className="text-xs text-neutral-500 mt-1">Total sessions</p>
+                            <div className="text-2xl font-bold text-foreground">{stats.testsCompleted}</div>
+                            <p className="text-xs text-muted-foreground mt-1">Total sessions</p>
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-neutral-900/50 border-white/5 backdrop-blur-sm hover:bg-neutral-900/80 transition-all duration-300 group cursor-pointer" onClick={() => navigate('/voice-practice')}>
+                    <Card className="bg-card border-border backdrop-blur-sm hover:bg-muted transition-all duration-300 group cursor-pointer" onClick={() => navigate('/voice-practice')}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-neutral-400 group-hover:text-teal-400 transition-colors">
+                            <CardTitle className="text-sm font-medium text-muted-foreground group-hover:text-teal-400 transition-colors">
                                 Voice Practice
                             </CardTitle>
                             <Mic className="h-4 w-4 text-teal-500" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-white">{stats.voicePoints}</div>
-                            <p className="text-xs text-neutral-500 mt-1">Total Points</p>
+                            <div className="text-2xl font-bold text-foreground">{stats.voicePoints}</div>
+                            <p className="text-xs text-muted-foreground mt-1">Total Points</p>
                             <p className="text-xs text-teal-400 mt-1">Avg Accuracy: {stats.voiceAccuracy}%</p>
                         </CardContent>
                     </Card>
 
                     {/* Verbal Practice Stats */}
-                    <Card className="bg-neutral-900/50 border-white/5 backdrop-blur-sm hover:bg-neutral-900/80 transition-all duration-300 group cursor-pointer" onClick={() => navigate('/verbal-practice')}>
+                    <Card className="bg-card border-border backdrop-blur-sm hover:bg-muted transition-all duration-300 group cursor-pointer" onClick={() => navigate('/verbal-practice')}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-neutral-400 group-hover:text-green-400 transition-colors">
+                            <CardTitle className="text-sm font-medium text-muted-foreground group-hover:text-green-400 transition-colors">
                                 Verbal Practice
                             </CardTitle>
                             <BookOpen className="h-4 w-4 text-green-500" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-white">{stats.verbalPoints}</div>
-                            <p className="text-xs text-neutral-500 mt-1">Total Points</p>
+                            <div className="text-2xl font-bold text-foreground">{stats.verbalPoints}</div>
+                            <p className="text-xs text-muted-foreground mt-1">Total Points</p>
                             <p className="text-xs text-green-400 mt-1">Avg Accuracy: {stats.verbalAccuracy}%</p>
                         </CardContent>
                     </Card>
@@ -278,12 +278,12 @@ const Dashboard = () => {
 
                 {/* Charts Section */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <Card className="col-span-1 lg:col-span-2 bg-neutral-900/50 border-white/5 backdrop-blur-md">
+                    <Card className="col-span-1 lg:col-span-2 bg-card border-border backdrop-blur-md">
                         <CardHeader>
                             <div className="flex items-center justify-between">
                                 <div>
                                     <CardTitle className="text-white text-xl">Weekly Practice Report</CardTitle>
-                                    <CardDescription className="text-neutral-400">
+                                    <CardDescription className="text-muted-foreground">
                                         Performance analytics for the last 7 days.
                                     </CardDescription>
                                 </div>
@@ -357,10 +357,10 @@ const Dashboard = () => {
                     </Card>
 
                     {/* Recent Activity */}
-                    <Card className="col-span-1 bg-neutral-900/50 border-white/5 backdrop-blur-md">
+                    <Card className="col-span-1 bg-card border-border backdrop-blur-md">
                         <CardHeader>
                             <CardTitle className="text-white text-xl">Recent Activity</CardTitle>
-                            <CardDescription className="text-neutral-400">
+                            <CardDescription className="text-muted-foreground">
                                 Latest session breakdown.
                             </CardDescription>
                         </CardHeader>
@@ -373,7 +373,7 @@ const Dashboard = () => {
                                         <div key={i} className="flex items-center justify-between border-b border-white/5 pb-3 last:border-0 last:pb-0 hover:bg-white/5 p-2 rounded-lg transition-colors cursor-default">
                                             <div className="flex flex-col">
                                                 <span className="text-sm font-medium text-white capitalize">{item.mode || 'words'} Test</span>
-                                                <span className="text-xs text-neutral-500">{format(new Date(item.created_at), 'MM/dd HH:mm')}</span>
+                                                <span className="text-xs text-muted-foreground">{format(new Date(item.created_at), 'MM/dd HH:mm')}</span>
                                             </div>
                                             <div className="flex items-center gap-4">
                                                 <span className="text-sm font-bold text-teal-400">{item.wpm} WPM</span>
@@ -386,7 +386,7 @@ const Dashboard = () => {
                             <div className="mt-6 pt-4 border-t border-white/5">
                                 <button
                                     onClick={() => setIsHistoryOpen(true)}
-                                    className="w-full py-2 text-sm text-center text-neutral-400 hover:text-white transition-colors"
+                                    className="w-full py-2 text-sm text-center text-muted-foreground hover:text-white transition-colors"
                                 >
                                     View All History
                                 </button>
@@ -398,15 +398,15 @@ const Dashboard = () => {
                 {/* Full History Modal */}
                 {isHistoryOpen && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-                        <div className="bg-neutral-900 border border-white/10 rounded-xl w-full max-w-4xl max-h-[80vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-300">
+                        <div className="bg-card border border-border rounded-xl w-full max-w-4xl max-h-[80vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-300">
                             <div className="p-6 border-b border-white/5 flex items-center justify-between">
                                 <div>
-                                    <h2 className="text-2xl font-bold text-white">Typing History</h2>
-                                    <p className="text-sm text-neutral-400">Complete record of your practice sessions.</p>
+                                    <h2 className="text-2xl font-bold text-foreground">Typing History</h2>
+                                    <p className="text-sm text-muted-foreground">Complete record of your practice sessions.</p>
                                 </div>
                                 <button
                                     onClick={() => setIsHistoryOpen(false)}
-                                    className="p-2 hover:bg-white/10 rounded-full transition-colors text-neutral-400 hover:text-white"
+                                    className="p-2 hover:bg-white/10 rounded-full transition-colors text-muted-foreground hover:text-white"
                                 >
                                     ✕
                                 </button>
@@ -414,7 +414,7 @@ const Dashboard = () => {
                             <div className="flex-1 overflow-auto p-4 md:p-6 custom-scrollbar">
                                 <div className="rounded-lg border border-white/5 overflow-hidden">
                                     <table className="w-full text-sm text-left">
-                                        <thead className="bg-white/5 text-neutral-400 font-medium">
+                                        <thead className="bg-white/5 text-muted-foreground font-medium">
                                             <tr>
                                                 <th className="px-4 py-3">Date</th>
                                                 <th className="px-4 py-3">Mode</th>
@@ -429,13 +429,13 @@ const Dashboard = () => {
                                                 <tr key={i} className="hover:bg-white/5 transition-colors">
                                                     <td className="px-4 py-3 text-neutral-300">{format(new Date(item.created_at), 'MMM dd, yyyy HH:mm')}</td>
                                                     <td className="px-4 py-3 capitalize text-neutral-300">
-                                                        <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-xs">
+                                                        <span className="px-2 py-0.5 rounded-full bg-muted border border-border text-xs">
                                                             {item.mode || 'words'}
                                                         </span>
                                                     </td>
                                                     <td className="px-4 py-3 font-bold text-teal-400">{item.wpm}</td>
                                                     <td className="px-4 py-3 font-bold text-purple-400">{item.accuracy}%</td>
-                                                    <td className="px-4 py-3 text-neutral-400">{item.time_duration}s</td>
+                                                    <td className="px-4 py-3 text-muted-foreground">{item.time_duration}s</td>
                                                     <td className="px-4 py-3 text-red-400">{item.error_count || 0}</td>
                                                 </tr>
                                             ))}
