@@ -15,9 +15,10 @@ const CommunicationLanding = () => {
             title: 'Speaking Practice',
             description: 'AI conversation partner, role-play scenarios, and daily topics.',
             icon: Mic,
-            color: 'text-teal-400',
+            iconColor: 'text-teal-600 dark:text-teal-400',
+            hoverColor: 'group-hover:text-teal-600 dark:group-hover:text-teal-400',
             bg: 'bg-teal-500/10',
-            border: 'hover:border-teal-500/30',
+            border: 'hover:border-teal-200 dark:hover:border-teal-500/30',
             path: '/voice-practice/communication/speaking'
         },
         {
@@ -25,9 +26,10 @@ const CommunicationLanding = () => {
             title: 'Listening Practice',
             description: 'Accent training, audio comprehension, and MCQ challenges.',
             icon: Ear,
-            color: 'text-blue-400',
+            iconColor: 'text-blue-600 dark:text-blue-400',
+            hoverColor: 'group-hover:text-blue-600 dark:group-hover:text-blue-400',
             bg: 'bg-blue-500/10',
-            border: 'hover:border-blue-500/30',
+            border: 'hover:border-blue-200 dark:hover:border-blue-500/30',
             path: '/voice-practice/communication/listening'
         },
         {
@@ -35,9 +37,10 @@ const CommunicationLanding = () => {
             title: 'Reading Practice',
             description: 'Read aloud with real-time pronunciation and accuracy feedback.',
             icon: BookOpen,
-            color: 'text-purple-400',
+            iconColor: 'text-purple-600 dark:text-purple-400',
+            hoverColor: 'group-hover:text-purple-600 dark:group-hover:text-purple-400',
             bg: 'bg-purple-500/10',
-            border: 'hover:border-purple-500/30',
+            border: 'hover:border-purple-200 dark:hover:border-purple-500/30',
             path: '/voice-practice/communication/reading'
         },
         {
@@ -45,21 +48,22 @@ const CommunicationLanding = () => {
             title: 'Writing Practice',
             description: 'Enhance grammar and style with AI-powered correction.',
             icon: PenTool,
-            color: 'text-pink-400',
+            iconColor: 'text-pink-600 dark:text-pink-400',
+            hoverColor: 'group-hover:text-pink-600 dark:group-hover:text-pink-400',
             bg: 'bg-pink-500/10',
-            border: 'hover:border-pink-500/30',
+            border: 'hover:border-pink-200 dark:hover:border-pink-500/30',
             path: '/voice-practice/communication/writing'
         }
     ];
 
     return (
-        <div className="min-h-screen bg-neutral-950 text-white font-sans selection:bg-teal-500/30 flex flex-col">
+        <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-white font-sans selection:bg-teal-500/30 flex flex-col">
             <Navbar forceOpaque={true} />
 
             <main className="flex-1 container mx-auto px-4 pt-24 pb-12">
                 <Button
                     variant="ghost"
-                    className="mb-8 hover:text-teal-400 text-neutral-400 pl-0"
+                    className="mb-8 hover:text-teal-600 dark:hover:text-teal-400 text-neutral-500 dark:text-neutral-400 pl-0"
                     onClick={() => navigate('/voice-practice')}
                 >
                     <ArrowLeft className="w-4 h-4 mr-2" /> Back to Voice Practice
@@ -67,14 +71,14 @@ const CommunicationLanding = () => {
 
                 <div className="max-w-4xl mx-auto">
                     <div className="text-center mb-12 space-y-4">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-400">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-600 dark:text-teal-400">
                             <Sparkles className="w-4 h-4" />
                             <span className="text-sm font-medium">Comprehensive Training</span>
                         </div>
                         <h1 className="text-4xl md:text-5xl font-bold font-heading">
                             Communication Mastery
                         </h1>
-                        <p className="text-lg text-neutral-400 max-w-2xl mx-auto">
+                        <p className="text-lg text-neutral-600 dark:text-neutral-400 max-w-2xl mx-auto">
                             Develop holistic language skills through our four-pillar approach.
                             Interact with AI, receive instant feedback, and track your progress.
                         </p>
@@ -84,22 +88,22 @@ const CommunicationLanding = () => {
                         {modules.map((module) => (
                             <Card
                                 key={module.id}
-                                className={`bg-neutral-900/50 border-white/5 transition-all duration-300 group hover:-translate-y-1 ${module.border}`}
+                                className={`bg-white dark:bg-neutral-900/50 text-neutral-900 dark:text-white border-neutral-200 dark:border-white/5 transition-all duration-300 group hover:-translate-y-1 hover:shadow-md dark:hover:shadow-none ${module.border}`}
                             >
                                 <CardHeader>
                                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-colors ${module.bg}`}>
-                                        <module.icon className={`w-6 h-6 ${module.color}`} />
+                                        <module.icon className={`w-6 h-6 ${module.iconColor}`} />
                                     </div>
-                                    <CardTitle className={`text-2xl group-hover:${module.color} transition-colors`}>
+                                    <CardTitle className={`text-2xl text-neutral-900 dark:text-white ${module.hoverColor} transition-colors`}>
                                         {module.title}
                                     </CardTitle>
-                                    <CardDescription className="text-neutral-400 text-base">
+                                    <CardDescription className="text-neutral-600 dark:text-neutral-400 text-base">
                                         {module.description}
                                     </CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     <Button
-                                        className="w-full bg-white/5 hover:bg-white/10 text-white border border-white/5 group-hover:bg-white/10"
+                                        className="w-full bg-neutral-100 hover:bg-neutral-200 text-neutral-900 border border-neutral-200 group-hover:bg-neutral-200 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white dark:border-white/5 dark:group-hover:bg-white/10"
                                         onClick={() => navigate(module.path)}
                                     >
                                         Start Practice <ChevronRight className="w-4 h-4 ml-2" />
