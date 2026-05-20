@@ -15,7 +15,7 @@ const HeroSection = () => {
         setTypedText(fullText.slice(0, index));
         index++;
       } else {
-        index = 0;
+        clearInterval(interval);
       }
     }, 100);
     return () => clearInterval(interval);
@@ -45,7 +45,7 @@ const HeroSection = () => {
           {/* Main Headline */}
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight" style={{ animationDelay: '0.1s' }}>
             <span className="font-mono text-primary">{typedText}</span>
-            <span className="typing-cursor" />
+            <span className="typing-cursor"/>
             <br />
             <span className="text-foreground">in One Platform</span>
           </h1>
