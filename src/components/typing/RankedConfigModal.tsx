@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, type ReactNode } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Swords, Clock, FileText, BarChart, Loader2 } from "lucide-react";
+import { Swords, Clock, FileText, BarChart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RoomConfig } from '@/hooks/useMultiplayer';
 
@@ -9,9 +9,21 @@ interface RankedConfigModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onStart: (config: RoomConfig) => void;
+    title?: string;
+    description?: string;
+    actionLabel?: string;
+    icon?: ReactNode;
 }
 
-const RankedConfigModal = ({ open, onOpenChange, onStart }: RankedConfigModalProps) => {
+const RankedConfigModal = ({
+    open,
+    onOpenChange,
+    onStart,
+    title = 'Ranked Match Setup',
+    description = 'Configure your race settings before finding an opponent.',
+    actionLabel = 'Find Opponent',
+    icon
+}: RankedConfigModalProps) => {
     const [mode, setMode] = useState<'words' | 'sentences' | 'paragraphs'>('words');
     const [duration, setDuration] = useState(30);
     const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
@@ -32,11 +44,11 @@ const RankedConfigModal = ({ open, onOpenChange, onStart }: RankedConfigModalPro
                 <div className="relative p-6 bg-gradient-to-b from-teal-500/10 to-transparent">
                     <DialogHeader className="relative z-10">
                         <div className="mx-auto bg-teal-500/20 w-12 h-12 rounded-full flex items-center justify-center mb-4 border border-teal-500/20 shadow-[0_0_15px_rgba(45,212,191,0.3)]">
-                            <Swords className="w-6 h-6 text-teal-400" />
+                            {icon || <Swords className="w-6 h-6 text-teal-400" />}
                         </div>
-                        <DialogTitle className="text-center text-xl font-bold tracking-tight text-white">Ranked Match Setup</DialogTitle>
+                        <DialogTitle className="text-center text-xl font-bold tracking-tight text-white">{title}</DialogTitle>
                         <DialogDescription className="text-center text-muted-foreground">
-                            Configure your race settings before finding an opponent.
+                            {description}
                         </DialogDescription>
                     </DialogHeader>
                 </div>
@@ -116,7 +128,7 @@ const RankedConfigModal = ({ open, onOpenChange, onStart }: RankedConfigModalPro
                         className="w-full bg-teal-500 hover:bg-teal-600 text-black font-bold mt-4"
                         onClick={handleStart}
                     >
-                        Find Opponent
+                        {actionLabel}
                     </Button>
                 </div>
             </DialogContent>

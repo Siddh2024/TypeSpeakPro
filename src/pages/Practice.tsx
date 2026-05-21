@@ -14,7 +14,9 @@ const Practice = () => {
     const [selectedMode, setSelectedMode] = useState<'solo' | 'multiplayer' | 'ranked_race' | null>(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [showLaptopSuggestion, setShowLaptopSuggestion] = useState(false);
+    const [isSoloConfigOpen, setIsSoloConfigOpen] = useState(false);
     const [isRankedConfigOpen, setIsRankedConfigOpen] = useState(false);
+    const [soloConfig, setSoloConfig] = useState<RoomConfig | null>(null);
     const [rankedConfig, setRankedConfig] = useState<RoomConfig | null>(null);
 
     // Mobile Laptop Suggestion Logic
@@ -101,7 +103,7 @@ const Practice = () => {
                     <div className="w-full max-w-6xl grid md:grid-cols-3 gap-6 animate-in zoom-in-95 duration-500">
                         {/* Solo Mode Card */}
                         <div
-                            onClick={() => setSelectedMode('solo')}
+                            onClick={() => setIsSoloConfigOpen(true)}
                             className="group relative overflow-hidden rounded-3xl border border-border bg-card/50 p-6 transition-all cursor-pointer hover:border-primary/50 hover:shadow-[0_0_40px_-10px_rgba(255,255,255,0.1)] hover:-translate-y-1"
                         >
                             <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
@@ -175,7 +177,13 @@ const Practice = () => {
                         <TypingTest
                             initialMultiplayer={selectedMode === 'multiplayer'}
                             aiMode={selectedMode === 'ranked_race'}
-                            initialConfig={rankedConfig || undefined}
+                            initialConfig={
+                                selectedMode === 'solo'
+                                    ? soloConfig || undefined
+                                    : selectedMode === 'ranked_race'
+                                        ? rankedConfig || undefined
+                                        : undefined
+                            }
                         />
                     </div>
                 )}
@@ -186,6 +194,19 @@ const Practice = () => {
             <LaptopSuggestionModal
                 isOpen={showLaptopSuggestion}
                 onClose={() => setShowLaptopSuggestion(false)}
+            />
+
+            <RankedConfigModal
+                open={isSoloConfigOpen}
+                onOpenChange={setIsSoloConfigOpen}
+                title="Solo Practice Setup"
+                description="Configure your practice settings before starting."
+                actionLabel="Start Practice"
+                icon={<User className="w-6 h-6 text-teal-400" />}
+                onStart={(config) => {
+                    setSoloConfig(config);
+                    setSelectedMode('solo');
+                }}
             />
 
             <RankedConfigModal
