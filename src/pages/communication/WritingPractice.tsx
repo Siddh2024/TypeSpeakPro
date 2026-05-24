@@ -8,6 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { ArrowLeft, Send, Sparkles, RefreshCw, CheckCircle, PenTool, Home } from 'lucide-react';
 import { analyzeWriting, WritingAnalysisResult } from '@/services/aiAnalysis';
 import { toast } from 'sonner';
+import { InlineError, LoadingState } from '@/components/async';
+import { useRetryableAction } from '@/hooks/useRetryableAction';
 
 const WRITING_TOPICS = [
     "Describe your ideal weekend getaway.",
@@ -24,8 +26,20 @@ const WritingPractice = () => {
     const navigate = useNavigate();
     const [topic, setTopic] = useState(WRITING_TOPICS[0]);
     const [text, setText] = useState('');
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [result, setResult] = useState<WritingAnalysisResult | null>(null);
+    const analysisAction = useRetryableAction(
+        async (value: string, prompt: string) => analyzeWriting(value, prompt),
+        {
+            loadingStatus: 'evaluating',
+            errorTitle: 'Writing analysis failed',
+            errorMessage: 'AI feedback is temporarily unavailable. Your writing is still here, so you can retry.',
+            scope: 'writing.analyze',
+            onSuccess: (data) => {
+                setResult(data);
+                toast.success("Analysis complete!");
+            },
+        }
+    );
 
     const handleNewTopic = () => {
         const random = WRITING_TOPICS[Math.floor(Math.random() * WRITING_TOPICS.length)];
@@ -40,16 +54,7 @@ const WritingPractice = () => {
             return;
         }
 
-        setIsAnalyzing(true);
-        try {
-            const data = await analyzeWriting(text, topic);
-            setResult(data);
-            toast.success("Analysis complete!");
-        } catch (error) {
-            toast.error("Failed to analyze text.");
-        } finally {
-            setIsAnalyzing(false);
-        }
+        await analysisAction.run(text, topic);
     };
 
     return (
@@ -95,26 +100,36 @@ const WritingPractice = () => {
                                     placeholder="Start writing here..."
                                     value={text}
                                     onChange={(e) => setText(e.target.value)}
+                                    disabled={analysisAction.isPending}
+                                    aria-describedby="writing-status"
                                 />
                                 <div className="mt-4 flex justify-between items-center text-sm text-neutral-500">
                                     <span>{text.split(/\s+/).filter(w => w.length > 0).length} words</span>
                                     <Button
                                         onClick={handleAnalyze}
-                                        disabled={isAnalyzing || !text}
+                                        disabled={analysisAction.isPending || !text}
                                         className="bg-teal-600 hover:bg-teal-700 text-white"
                                     >
-                                        {isAnalyzing ? (
+                                        {analysisAction.isPending ? (
                                             <>Analyzing <Sparkles className="w-4 h-4 ml-2 animate-spin" /></>
                                         ) : (
                                             <>Analyze Writing <Send className="w-4 h-4 ml-2" /></>
                                         )}
                                     </Button>
                                 </div>
+                                <div id="writing-status" className="mt-4">
+                                    <InlineError error={analysisAction.error} onRetry={analysisAction.retry} />
+                                </div>
                             </CardContent>
                         </Card>
                     </div>
 
                     {/* Right Panel: Analysis (only visible when result exists) */}
+                    {analysisAction.status === 'evaluating' && !result && (
+                        <div className="w-full lg:w-[450px]">
+                            <LoadingState title="Analyzing writing" description="Generating grammar, vocabulary, and tone feedback." />
+                        </div>
+                    )}
                     {result && (
                         <div className="w-full lg:w-[450px] space-y-6 animate-in slide-in-from-right-4">
                             {/* Score Card */}

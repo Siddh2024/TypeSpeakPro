@@ -11,11 +11,16 @@ import { LISTENING_SCENARIOS, ListeningScenario } from '@/data/listeningScenario
 import confetti from 'canvas-confetti';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { InlineError, SaveIndicator } from '@/components/async';
+import { useAsyncState } from '@/hooks/useAsyncState';
+import { logAsyncError, toUserSafeError } from '@/types/async';
 
 const ListeningPractice = () => {
     const navigate = useNavigate();
-    const { speak, isSpeaking, cancelSpeech } = useSpeech();
+    const { speak, isSpeaking, cancelSpeech, error: speechError } = useSpeech();
     const { user } = useAuth();
+    const saveState = useAsyncState<void>();
+    const lastScoreRef = React.useRef<{ correctCount: number; total: number } | null>(null);
 
     // Filter State
     const [selectedLevel, setSelectedLevel] = useState<'All' | 'Easy' | 'Medium' | 'Hard'>('All');
@@ -58,6 +63,37 @@ const ListeningPractice = () => {
         setUserAnswers(prev => ({ ...prev, [qIndex]: optionIndex }));
     };
 
+    const saveListeningScore = async (correctCount: number, total: number) => {
+        lastScoreRef.current = { correctCount, total };
+        if (!user?.id) return;
+
+        saveState.setStatus('saving');
+        try {
+            const points = correctCount * 10;
+            const { error } = await supabase.from('practice_results').insert({
+                user_id: user.id,
+                practice_type: 'listening',
+                score: points,
+                accuracy: Math.round((correctCount / total) * 100)
+            });
+            if (error) throw error;
+            saveState.setData(undefined, 'success');
+            toast.success(`Saved ${points} points!`);
+        } catch (error) {
+            logAsyncError('listening.saveScore', error);
+            saveState.setError(toUserSafeError(error, {
+                title: 'Score was not saved',
+                message: 'Your answers are shown below. Retry saving when your connection is stable.',
+            }));
+        }
+    };
+
+    const retrySave = () => {
+        if (lastScoreRef.current) {
+            saveListeningScore(lastScoreRef.current.correctCount, lastScoreRef.current.total);
+        }
+    };
+
     const checkAnswers = () => {
         const answeredCount = Object.keys(userAnswers).length;
         if (answeredCount < scenario.questions.length) {
@@ -82,21 +118,7 @@ const ListeningPractice = () => {
             toast.error("Some answers are incorrect. Check the red boxes!");
         }
 
-        // Save Result
-        if (user?.id) {
-            const saveScore = async () => {
-                const points = correctCount * 10; // 10 points per correct answer
-                const { error } = await supabase.from('practice_results').insert({
-                    user_id: user.id,
-                    practice_type: 'listening', // or 'vocal' as per user request mapping? User said "voive practice and vocal practice". Let's stick to internal names 'listening' and map it later.
-                    score: points,
-                    accuracy: Math.round((correctCount / scenario.questions.length) * 100)
-                });
-                if (error) console.error('Error saving score:', error);
-                else toast.success(`Saved ${points} points!`);
-            };
-            saveScore();
-        }
+        saveListeningScore(correctCount, scenario.questions.length);
 
         setShowResults(true);
     };
@@ -203,12 +225,14 @@ const ListeningPractice = () => {
                                     size="icon"
                                     className="w-16 h-16 rounded-full bg-teal-500 hover:bg-teal-600 text-white shadow-lg z-10"
                                     onClick={isSpeaking ? cancelSpeech : handlePlay}
+                                    aria-label={isSpeaking ? 'Pause listening scenario' : 'Play listening scenario'}
                                 >
                                     {isSpeaking ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8 ml-1" />}
                                 </Button>
                             </div>
                             <p className="text-neutral-400 text-sm">Click play to listen to the scenario.</p>
                             <p className="text-neutral-500 text-xs mt-2">{filteredScenarios.length} scenarios in this list</p>
+                            <InlineError error={speechError} onRetry={handlePlay} className="mt-4 w-full max-w-md" />
                         </CardContent>
                     </Card>
 
@@ -238,18 +262,20 @@ const ListeningPractice = () => {
                                             }
 
                                             return (
-                                                <div
+                                                <button
+                                                    type="button"
                                                     key={optIndex}
                                                     onClick={() => handleAnswer(qIndex, optIndex)}
+                                                    disabled={showResults}
                                                     className={`
-                                                        p-4 rounded-lg border cursor-pointer transition-all flex justify-between items-center
+                                                        p-4 rounded-lg border cursor-pointer transition-all flex justify-between items-center text-left disabled:cursor-default
                                                         ${cardStyle} ${animation}
                                                     `}
                                                 >
                                                     {opt}
                                                     {showResults && isCorrect && <CheckCircle className="w-4 h-4 text-green-500" />}
                                                     {showResults && isSelected && !isCorrect && <XCircle className="w-4 h-4 text-red-500" />}
-                                                </div>
+                                                </button>
                                             );
                                         })}
                                     </div>
@@ -260,6 +286,8 @@ const ListeningPractice = () => {
 
                     {/* Footer Controls */}
                     <div className="flex justify-end gap-4">
+                        <SaveIndicator status={saveState.status} />
+                        <InlineError error={saveState.error} onRetry={retrySave} />
                         {!showResults ? (
                             <Button size="lg" onClick={checkAnswers} className="bg-teal-600 hover:bg-teal-700">
                                 Check Answers

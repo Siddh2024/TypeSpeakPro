@@ -8,6 +8,7 @@ import SetupScreen from './speaking/SetupScreen';
 import MissionInterface from './speaking/MissionInterface';
 import { UserProfile, ZONES } from '@/data/speakingGameData';
 import { Card, CardContent } from '@/components/ui/card';
+import { LoadingState } from '@/components/async';
 
 type GamePhase = 'LOADING' | 'SETUP' | 'MAP' | 'MISSION' | 'FEEDBACK';
 
@@ -79,7 +80,7 @@ const SpeakingPractice = () => {
                 {/* Content Area */}
                 <div className="flex-1 flex items-center justify-center pt-12">
                     {phase === 'LOADING' && (
-                        <div className="animate-pulse text-teal-400">Loading World...</div>
+                        <LoadingState title="Loading world" description="Preparing your speaking missions." />
                     )}
 
                     {phase === 'SETUP' && (
@@ -108,6 +109,9 @@ const SpeakingPractice = () => {
                                         <Card
                                             key={zone.id}
                                             onClick={() => handleEnterZone(zone.id)}
+                                            onKeyDown={(event) => { if ((event.key === 'Enter' || event.key === ' ') && isUnlocked) handleEnterZone(zone.id); }}
+                                            role={isUnlocked ? 'button' : undefined}
+                                            tabIndex={isUnlocked ? 0 : -1}
                                             className={`
                                                 relative overflow-hidden transition-all duration-300 border-white/5
                                                 ${isUnlocked

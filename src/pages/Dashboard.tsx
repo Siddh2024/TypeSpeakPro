@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -7,6 +7,8 @@ import { useAuth } from "@/context/AuthContext";
 import Navbar from "@/components/Navbar";
 import { supabase } from "@/lib/supabase";
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
+import { EmptyState, InlineError, SectionSkeleton } from '@/components/async';
+import { useRetryableAction } from '@/hooks/useRetryableAction';
 
 const Dashboard = () => {
     const navigate = useNavigate();
@@ -28,13 +30,7 @@ const Dashboard = () => {
     const [weeklyData, setWeeklyData] = useState<any[]>([]);
     const [recentActivity, setRecentActivity] = useState<any[]>([]);
 
-    useEffect(() => {
-        if (user?.id) {
-            fetchDashboardData();
-        }
-    }, [user?.id]);
-
-    const fetchDashboardData = async () => {
+    const fetchDashboardData = useCallback(async () => {
         if (!user?.id) return;
 
         // Fetch all results for the user for general stats
@@ -50,8 +46,11 @@ const Dashboard = () => {
             .eq('user_id', user.id); // Fetch practice results
 
         if (error || !allResults) {
-            console.error('Error fetching dashboard data:', error);
-            return;
+            throw error ?? new Error('DASHBOARD_RESULTS_MISSING');
+        }
+
+        if (practiceError) {
+            throw practiceError;
         }
 
         setFullHistory(allResults);
@@ -130,7 +129,19 @@ const Dashboard = () => {
 
         // 3. Recent Activity (Top 5)
         setRecentActivity(allResults.slice(0, 5));
-    };
+    }, [user?.id]);
+
+    const dashboardAction = useRetryableAction(fetchDashboardData, {
+        errorTitle: 'Dashboard could not load',
+        errorMessage: 'We could not fetch your practice history. Check your connection and retry.',
+        scope: 'dashboard.fetch',
+    });
+
+    useEffect(() => {
+        if (user?.id) {
+            dashboardAction.run();
+        }
+    }, [user?.id]);
 
     const formatTime = (seconds: number) => {
         const h = Math.floor(seconds / 3600);
@@ -143,6 +154,7 @@ const Dashboard = () => {
         <div className="min-h-screen bg-background text-foreground font-sans fade-in selection:bg-teal-500/30">
             <Navbar />
             <div className="max-w-7xl mx-auto space-y-8 p-6 md:p-12 pt-24 mt-16">
+                <InlineError error={dashboardAction.error} onRetry={dashboardAction.retry} />
 
                 {/* Profile Hero Section */}
                 <div className="relative overflow-hidden rounded-3xl bg-card border border-border p-8 md:p-12 shadow-2xl">
@@ -193,6 +205,9 @@ const Dashboard = () => {
                 </div>
 
                 {/* Stats Grid */}
+                {dashboardAction.isPending && recentActivity.length === 0 ? (
+                    <SectionSkeleton rows={6} className="rounded-xl border border-border bg-card p-6" />
+                ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <Card className="bg-card border-border backdrop-blur-sm hover:bg-muted transition-all duration-300 group">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -246,7 +261,13 @@ const Dashboard = () => {
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-card border-border backdrop-blur-sm hover:bg-muted transition-all duration-300 group cursor-pointer" onClick={() => navigate('/voice-practice')}>
+                    <Card
+                        className="bg-card border-border backdrop-blur-sm hover:bg-muted transition-all duration-300 group cursor-pointer"
+                        onClick={() => navigate('/voice-practice')}
+                        onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') navigate('/voice-practice'); }}
+                        role="button"
+                        tabIndex={0}
+                    >
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium text-muted-foreground group-hover:text-teal-400 transition-colors">
                                 Voice Practice
@@ -261,7 +282,13 @@ const Dashboard = () => {
                     </Card>
 
                     {/* Verbal Practice Stats */}
-                    <Card className="bg-card border-border backdrop-blur-sm hover:bg-muted transition-all duration-300 group cursor-pointer" onClick={() => navigate('/verbal-practice')}>
+                    <Card
+                        className="bg-card border-border backdrop-blur-sm hover:bg-muted transition-all duration-300 group cursor-pointer"
+                        onClick={() => navigate('/verbal-practice')}
+                        onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') navigate('/verbal-practice'); }}
+                        role="button"
+                        tabIndex={0}
+                    >
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium text-muted-foreground group-hover:text-green-400 transition-colors">
                                 Verbal Practice
@@ -275,6 +302,7 @@ const Dashboard = () => {
                         </CardContent>
                     </Card>
                 </div>
+                )}
 
                 {/* Charts Section */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -367,7 +395,7 @@ const Dashboard = () => {
                         <CardContent>
                             <div className="space-y-4">
                                 {recentActivity.length === 0 ? (
-                                    <div className="text-center text-neutral-500 py-8 text-sm">No activity yet. Start typing!</div>
+                                    <EmptyState title="No activity yet" description="Complete a typing test to see your latest sessions here." className="py-8" />
                                 ) : (
                                     recentActivity.map((item, i) => (
                                         <div key={i} className="flex items-center justify-between border-b border-white/5 pb-3 last:border-0 last:pb-0 hover:bg-white/5 p-2 rounded-lg transition-colors cursor-default">

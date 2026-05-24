@@ -8,13 +8,14 @@ import { ArrowLeft, Mic, MicOff, RefreshCw, Volume2, BookOpen, ChevronDown, Chev
 import { useSpeech } from '@/hooks/useSpeech';
 import { toast } from 'sonner';
 import { READING_PASSAGES } from '@/data/readingPassages';
+import { InlineError } from '@/components/async';
 
 const LEVELS = ['Beginner', 'Intermediate', 'Advanced'];
 
 const ReadingPractice = () => {
     const navigate = useNavigate();
     const [selectedPassage, setSelectedPassage] = useState(READING_PASSAGES[0]);
-    const { isListening, transcript, startListening, stopListening, resetTranscript, speak } = useSpeech('en-US');
+    const { isListening, transcript, startListening, stopListening, resetTranscript, speak, error: speechError } = useSpeech('en-US');
     const [accuracy, setAccuracy] = useState(0);
     const [feedback, setFeedback] = useState<{ word: string; status: 'correct' | 'wrong' | 'pending' }[]>([]);
 
@@ -178,6 +179,9 @@ const ReadingPractice = () => {
                                                     <Card
                                                         key={passage.id}
                                                         onClick={() => handlePassageChange(passage)}
+                                                        onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') handlePassageChange(passage); }}
+                                                        role="button"
+                                                        tabIndex={0}
                                                         className={`cursor-pointer transition-all border-white/5 hover:bg-white/5 ${selectedPassage.id === passage.id ? 'bg-teal-500/10 border-teal-500/50' : 'bg-transparent border-transparent'}`}
                                                     >
                                                         <CardContent className="p-3">
@@ -212,6 +216,7 @@ const ReadingPractice = () => {
                             </div>
 
                             <CardContent className="p-8 flex-1 flex flex-col gap-8 relative z-10">
+                                <InlineError error={speechError} onRetry={startListening} />
                                 {/* Text Display */}
                                 <div className="flex-1">
                                     {renderContent()}
@@ -258,6 +263,7 @@ const ReadingPractice = () => {
                                         <Button
                                             size="lg"
                                             onClick={handleToggle}
+                                            aria-label={isListening ? 'Stop reading recording' : 'Start reading recording'}
                                             className={`
                                                 h-16 w-16 rounded-full shadow-xl transition-all duration-300
                                                 ${isListening
@@ -276,6 +282,7 @@ const ReadingPractice = () => {
                                             onClick={() => speak(selectedPassage.content)}
                                             disabled={isListening}
                                             title="Listen to pronunciation"
+                                            aria-label="Listen to pronunciation"
                                         >
                                             <Volume2 className="w-6 h-6 text-blue-400" />
                                         </Button>
@@ -287,13 +294,14 @@ const ReadingPractice = () => {
                                             onClick={() => { resetTranscript(); setAccuracy(0); setHasAttempted(false); }}
                                             disabled={isListening}
                                             title="Reset"
+                                            aria-label="Reset reading attempt"
                                         >
                                             <RefreshCw className="w-6 h-6 text-neutral-400" />
                                         </Button>
                                     </div>
                                 )}
 
-                                <div className="text-center h-6">
+                                <div className="text-center h-6" aria-live="polite">
                                     {isListening && (
                                         <p className="text-sm text-teal-400 animate-pulse">Listening... read aloud</p>
                                     )}

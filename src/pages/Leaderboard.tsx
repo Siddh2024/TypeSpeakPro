@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import Navbar from '@/components/Navbar';
 import { format } from 'date-fns';
@@ -7,6 +7,8 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import UserAvatar from '@/components/UserAvatar';
+import { EmptyState, InlineError } from '@/components/async';
+import { useRetryableAction } from '@/hooks/useRetryableAction';
 
 interface LeaderboardEntry {
     rank: number;
@@ -38,13 +40,7 @@ const MotionTr = motion.tr as any;
 
 const Leaderboard = () => {
     const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
-    const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
-
-    useEffect(() => {
-        fetchLeaderboard();
-        triggerFireworks();
-    }, []);
 
     const triggerFireworks = () => {
         const duration = 3 * 1000;
@@ -67,8 +63,7 @@ const Leaderboard = () => {
         }, 250);
     };
 
-    const fetchLeaderboard = async () => {
-        try {
+    const fetchLeaderboard = useCallback(async () => {
             // Fetch top results ordered by WPM desc
             const { data, error } = await supabase
                 .from('test_results')
@@ -109,12 +104,18 @@ const Leaderboard = () => {
                 }));
 
             setEntries(sorted);
-        } catch (error) {
-            console.error('Error fetching leaderboard:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+    }, []);
+
+    const leaderboardAction = useRetryableAction(fetchLeaderboard, {
+        errorTitle: 'Leaderboard could not load',
+        errorMessage: 'We could not fetch the latest rankings. Retry when your connection is stable.',
+        scope: 'leaderboard.fetch',
+    });
+
+    useEffect(() => {
+        leaderboardAction.run();
+        triggerFireworks();
+    }, []);
 
     const getRankIcon = (rank: number) => {
         if (rank === 1) return <Crown className="w-6 h-6 text-yellow-400 fill-yellow-400/20" />;
@@ -155,6 +156,7 @@ const Leaderboard = () => {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.5 }}
                     onClick={() => navigate('/practice')}
+                    aria-label="Back to practice"
                     className="absolute top-8 left-6 md:left-0 md:top-24 p-2 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 text-neutral-400 hover:text-white transition-colors cursor-pointer"
                 >
                     <ArrowLeft className="w-6 h-6" />
@@ -179,6 +181,7 @@ const Leaderboard = () => {
                 </motion.div>
 
                 {/* Table */}
+                <InlineError error={leaderboardAction.error} onRetry={leaderboardAction.retry} />
                 <div className="bg-neutral-900/50 backdrop-blur-sm border border-white/5 rounded-2xl overflow-hidden shadow-2xl relative">
                     {/* Scanning Line Effect */}
                     <motion.div
@@ -205,7 +208,7 @@ const Leaderboard = () => {
                                 animate="visible"
                                 className="divide-y divide-white/5"
                             >
-                                {loading ? (
+                                {leaderboardAction.isPending ? (
                                     // Skeleton Loading
                                     Array.from({ length: 5 }).map((_, i) => (
                                         <MotionTr variants={itemVariants} key={i} className="animate-pulse">
@@ -218,8 +221,12 @@ const Leaderboard = () => {
                                     ))
                                 ) : entries.length === 0 ? (
                                     <tr>
-                                        <td colSpan={5} className="p-12 text-center text-neutral-500">
-                                            No results found yet. Be the first!
+                                        <td colSpan={5}>
+                                            <EmptyState
+                                                title="No results yet"
+                                                description="Complete a typing test to claim the first spot."
+                                                className="p-12 text-neutral-500"
+                                            />
                                         </td>
                                     </tr>
                                 ) : (

@@ -2,10 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useSpeech } from '@/hooks/useSpeech';
-import { Mic, MicOff, Volume2, X, Play, RefreshCw, Send, ThumbsUp, ThumbsDown, Meh } from 'lucide-react';
+import { Mic, X, Play, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { ZONES } from '@/data/speakingGameData';
 import { generateConversationResponse } from '@/services/aiAnalysis';
+import { InlineError } from '@/components/async';
+import { useAsyncState } from '@/hooks/useAsyncState';
+import { createAsyncError, logAsyncError, toUserSafeError } from '@/types/async';
 
 interface MissionInterfaceProps {
     zoneId: number;
@@ -25,7 +28,8 @@ const SCENARIOS: Record<number, { intro: string, aiFirst: string }> = {
 type Turn = 'INTRO' | 'AI_SPEAKING' | 'USER_SPEAKING' | 'EVALUATING' | 'FINISHED';
 
 const MissionInterface: React.FC<MissionInterfaceProps> = ({ zoneId, onComplete, onExit }) => {
-    const { isListening, transcript, startListening, stopListening, resetTranscript, speak, isSpeaking, cancelSpeech } = useSpeech('en-US');
+    const { isListening, transcript, startListening, stopListening, resetTranscript, speak, isSpeaking, error: speechError } = useSpeech('en-US');
+    const evaluationState = useAsyncState<void>();
 
     const [turn, setTurn] = useState<Turn>('INTRO');
     const [history, setHistory] = useState<{ role: 'ai' | 'user', text: string }[]>([]);
@@ -88,12 +92,17 @@ const MissionInterface: React.FC<MissionInterfaceProps> = ({ zoneId, onComplete,
     const evaluateAndRespond = async (userText: string) => {
         if (!userText.trim()) {
             setFeedback('bad');
-            toast.error("I didn't hear anything. Try again!");
+            evaluationState.setError(createAsyncError(
+                'No speech detected',
+                'We did not capture a reply for this turn.',
+                { recoveryHint: 'Press the microphone and speak clearly before sending.' }
+            ));
             setTurn('USER_SPEAKING');
             return;
         }
 
         addToHistory('user', userText);
+        evaluationState.setStatus('evaluating');
 
         try {
             // Call AI Service
@@ -101,6 +110,7 @@ const MissionInterface: React.FC<MissionInterfaceProps> = ({ zoneId, onComplete,
             const result = await generateConversationResponse(history, userText, context);
 
             setFeedback(result.feedback);
+            evaluationState.setData(undefined, 'success');
 
             // Limit exchanges for demo (game loop logic)
             if (exchangeCount >= 3) {
@@ -119,7 +129,11 @@ const MissionInterface: React.FC<MissionInterfaceProps> = ({ zoneId, onComplete,
             }, 500);
 
         } catch (err) {
-            console.error(err);
+            logAsyncError('speaking.evaluate', err);
+            evaluationState.setError(toUserSafeError(err, {
+                title: 'AI response failed',
+                message: 'The conversation could not continue right now. Retry your reply.',
+            }));
             toast.error("AI connection failed");
             setTurn('USER_SPEAKING');
         }
@@ -130,7 +144,7 @@ const MissionInterface: React.FC<MissionInterfaceProps> = ({ zoneId, onComplete,
             {/* Header / HUD */}
             <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" onClick={onExit}><X className="w-5 h-5" /></Button>
+                    <Button variant="ghost" size="icon" onClick={onExit} aria-label="Exit mission"><X className="w-5 h-5" /></Button>
                     <span className="font-bold text-lg">{ZONES.find(z => z.id === zoneId)?.name}</span>
                 </div>
                 <div className="flex gap-2">
@@ -177,6 +191,9 @@ const MissionInterface: React.FC<MissionInterfaceProps> = ({ zoneId, onComplete,
 
                 {/* Interaction Bar */}
                 <div className="p-6 bg-black/20 border-t border-white/5 flex items-center justify-center gap-6">
+                    <div className="absolute bottom-28 left-6 right-6">
+                        <InlineError error={speechError || evaluationState.error} onRetry={startListening} />
+                    </div>
                     {turn !== 'INTRO' && turn !== 'FINISHED' && (
                         <>
                             {/* Transcript Preview */}
@@ -192,6 +209,7 @@ const MissionInterface: React.FC<MissionInterfaceProps> = ({ zoneId, onComplete,
                                 size="xl"
                                 onClick={handleUserReply}
                                 disabled={turn === 'EVALUATING' || (turn === 'AI_SPEAKING' && isSpeaking)}
+                                aria-label={isListening ? 'Send spoken reply' : 'Start speaking reply'}
                                 className={`
                                     h-20 w-20 rounded-full shadow-2xl transition-all duration-300
                                     ${isListening

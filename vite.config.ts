@@ -9,6 +9,11 @@ export default defineConfig({
     host: "::",
     port: 8080,
   },
+  test: {
+    environment: "jsdom",
+    setupFiles: "./src/test/setup.ts",
+    globals: true,
+  },
   plugins: [react()],
   resolve: {
     alias: {

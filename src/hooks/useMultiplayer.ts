@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { toast } from 'sonner';
+import { logAsyncError } from '@/types/async';
 
 export type GameState = 'lobby' | 'countdown' | 'racing' | 'finished';
 
@@ -64,7 +65,7 @@ export const useMultiplayer = (user: any) => {
                 channelRef.current = null;
             }
         } catch (err) {
-            console.error("[useMultiplayer] Cleanup failed:", err);
+            logAsyncError("[useMultiplayer] cleanup", err);
         }
         setRoomCode(null);
         setPlayers([]);
@@ -89,7 +90,7 @@ export const useMultiplayer = (user: any) => {
 
             // 1. New Player Joined (or existing players announcing themselves)
             channel.on('broadcast', { event: 'player_join' }, ({ payload }) => {
-                console.log("Player joined:", payload);
+                if (import.meta.env.DEV) console.log("Player joined:", payload);
                 setPlayers(prev => {
                     const exists = prev.find(p => p.id === payload.id);
                     if (exists) return prev;
@@ -111,7 +112,7 @@ export const useMultiplayer = (user: any) => {
 
             // 2. Room Config Sync
             channel.on('broadcast', { event: 'room_config' }, ({ payload }) => {
-                console.log("Received Room Config:", payload);
+                if (import.meta.env.DEV) console.log("Received Room Config:", payload);
                 setRoomConfig(payload);
             });
 
@@ -157,7 +158,7 @@ export const useMultiplayer = (user: any) => {
 
             // Subscribe
             const subscription = channel.subscribe(async (status) => {
-                console.log(`[useMultiplayer] Room ${code} subscription status:`, status);
+                if (import.meta.env.DEV) console.log(`[useMultiplayer] Room ${code} subscription status:`, status);
                 if (status === 'SUBSCRIBED') {
                     // Announce self
                     const myProfile: Player = {
@@ -177,7 +178,7 @@ export const useMultiplayer = (user: any) => {
                             payload: myProfile
                         });
                     } catch (err) {
-                        console.error("Failed to broadcast join:", err);
+                        logAsyncError("multiplayer.broadcastJoin", err);
                     }
 
                     // Optimistically add self to list
@@ -192,10 +193,10 @@ export const useMultiplayer = (user: any) => {
                     }
                 } else if (status === 'CHANNEL_ERROR') {
                     toast.error("Failed to connect to room. Check connection.");
-                    console.error("Channel error for room:", code);
+                    logAsyncError("multiplayer.channel", code);
                 } else if (status === 'TIMED_OUT') {
                     toast.error("Connection timed out. Retrying...");
-                    console.warn("Channel timeout for room:", code);
+                    logAsyncError("multiplayer.timeout", code);
                 }
             });
 
@@ -204,8 +205,9 @@ export const useMultiplayer = (user: any) => {
             };
 
         } catch (error) {
-            console.error("Join room error:", error);
+            logAsyncError("multiplayer.joinRoom", error);
             toast.error("Failed to join room");
+            throw error;
         }
 
     }, [user, myColor, cleanup, roomConfig, playerId]); // Depend on roomConfig so Host can re-broadcast it
@@ -247,8 +249,9 @@ export const useMultiplayer = (user: any) => {
                 payload: { id: myId, isReady: newStatus }
             });
         } catch (err) {
-            console.error("Failed to broadcast ready:", err);
+            logAsyncError("multiplayer.ready", err);
             // Revert on error? Or just let it sync later?
+            throw err;
         }
     }, [players, playerId]);
 

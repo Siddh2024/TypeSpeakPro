@@ -22,6 +22,9 @@ import MultiplayerResults from './MultiplayerResults';
 import { Loader2 } from 'lucide-react';
 import { Home } from 'lucide-react';
 import type { RoomConfig } from '@/hooks/useMultiplayer';
+import { InlineError, SaveIndicator } from '@/components/async';
+import { useAsyncState } from '@/hooks/useAsyncState';
+import { logAsyncError, toUserSafeError } from '@/types/async';
 
 import {
     COMMON_WORDS, WORDS_EASY, WORDS_HARD,
@@ -113,6 +116,9 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
     const [history, setHistory] = useState<{ time: number; wpm: number; raw: number }[]>([]);
     const inputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const saveState = useAsyncState<void>();
+    const saveInFlightRef = useRef(false);
+    const lastSavePayloadRef = useRef<any>(null);
     const navigate = useNavigate();
 
     const resetSessionState = useCallback((duration: number) => {
@@ -125,8 +131,67 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
         setAccuracy(100);
         setErrorCount(0);
         setHistory([]);
+        saveState.reset();
+        lastSavePayloadRef.current = null;
         if (inputRef.current) inputRef.current.focus();
-    }, []);
+    }, [saveState]);
+
+    const saveTestResult = useCallback(async (payload: {
+        wpm: number;
+        accuracy: number;
+        errorCount: number;
+        time: number;
+        mode: TypingMode;
+    }) => {
+        lastSavePayloadRef.current = payload;
+
+        if (!user?.id) {
+            if (user) {
+                saveState.setError({
+                    title: 'Progress not saved',
+                    message: 'Your profile is signed in, but the database profile is not ready yet.',
+                    recoveryHint: 'Refresh or sign in again before saving new results.',
+                    retryable: false,
+                }, false);
+            }
+            return;
+        }
+
+        if (saveInFlightRef.current) return;
+        saveInFlightRef.current = true;
+        saveState.setStatus('saving');
+
+        try {
+            const { error } = await supabase
+                .from('test_results')
+                .insert({
+                    user_id: user.id,
+                    wpm: payload.wpm,
+                    accuracy: payload.accuracy,
+                    error_count: payload.errorCount,
+                    time_duration: payload.time,
+                    mode: payload.mode
+                });
+
+            if (error) throw error;
+            saveState.setData(undefined, 'success');
+            toast.success("Result saved to history!");
+        } catch (err) {
+            logAsyncError('typing.saveResult', err);
+            saveState.setError(toUserSafeError(err, {
+                title: 'Could not save your result',
+                message: 'Your score is still visible here. Retry saving when your connection is stable.',
+            }));
+        } finally {
+            saveInFlightRef.current = false;
+        }
+    }, [saveState, user]);
+
+    const retrySave = useCallback(() => {
+        if (lastSavePayloadRef.current) {
+            saveTestResult(lastSavePayloadRef.current);
+        }
+    }, [saveTestResult]);
 
     // Automatically open multiplayer modal if prop passed OR if URL has ?room=
     // Automatically open multiplayer modal if prop passed OR if URL has ?room=
@@ -273,6 +338,13 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
 
         setWpm(finalWpm);
         setAccuracy(finalAccuracy); // Update local state
+        saveTestResult({
+            wpm: finalWpm,
+            accuracy: finalAccuracy,
+            errorCount,
+            time: selectedTime,
+            mode
+        });
 
         // Submit to Multiplayer if active
         if (multiplayer.roomCode && multiplayer.completeRace) {
@@ -287,7 +359,7 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
         if (onComplete) {
             onComplete({ wpm: finalWpm, accuracy: finalAccuracy, errorCount });
         }
-    }, [userInput, targetText, startTime, selectedTime, errorCount, multiplayer, onComplete]);
+    }, [userInput, targetText, startTime, selectedTime, errorCount, multiplayer, onComplete, saveTestResult, mode]);
 
     // Check for completion
     useEffect(() => {
@@ -377,50 +449,7 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
             });
         }
 
-        // Save to Supabase if user is logged in
-        console.log("EndTest called. User:", user);
-
-        if (user?.id) {
-            console.log("Attempting to save result to Supabase...", {
-                user_id: user.id,
-                wpm,
-                accuracy,
-                errorCount,
-                time: selectedTime,
-                mode
-            });
-
-            try {
-                const { data, error } = await supabase
-                    .from('test_results')
-                    .insert({
-                        user_id: user.id,
-                        wpm: wpm,
-                        accuracy: accuracy,
-                        error_count: errorCount,
-                        time_duration: selectedTime,
-                        mode: mode
-                    })
-                    .select();
-
-                if (error) {
-                    console.error("Supabase SAVE ERROR:", error);
-                    // Don't toast error to user if it's just a config issue, maybe silent fail or debug log
-                    // toast.error(`Failed to save history: ${error.message}`); 
-                } else {
-                    console.log("Result saved successfully!", data);
-                    toast.success("Result saved to history!");
-                }
-            } catch (err) {
-                console.error("Unexpected error saving result:", err);
-                // Prevent crash
-            }
-        } else {
-            console.warn("User ID missing, cannot save result. User object:", user);
-            if (user) {
-                toast.warning("Not connected to database (User ID missing).");
-            }
-        }
+        await saveTestResult({ wpm, accuracy, errorCount, time: selectedTime, mode });
 
         if (onComplete) {
             onComplete({ wpm, accuracy, errorCount });
@@ -783,6 +812,13 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
 
             {/* Results Modal Overlay */}
 
+
+            <div className="flex justify-center pt-8">
+                <div className="flex flex-col items-center gap-3">
+                    <SaveIndicator status={saveState.status} />
+                    <InlineError error={saveState.error} onRetry={saveState.error?.retryable === false ? undefined : retrySave} />
+                </div>
+            </div>
 
             <div className="flex justify-center pt-8">
                 <Button variant="ghost" size="lg" onClick={resetTest} className="opacity-50 hover:opacity-100 transition-opacity">

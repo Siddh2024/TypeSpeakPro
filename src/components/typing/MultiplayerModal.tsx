@@ -7,6 +7,9 @@ import { Copy, Loader2, Users, ArrowRight, CheckCircle2, Circle, Play, Crown } f
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useMultiplayer } from '@/hooks/useMultiplayer';
+import { InlineError } from '@/components/async';
+import type { AsyncErrorMetadata } from '@/types/async';
+import { logAsyncError, toUserSafeError } from '@/types/async';
 
 import { generateWords, generateSentences, PARAGRAPHS_EASY, PARAGRAPHS_MEDIUM, PARAGRAPHS_HARD, applyTextTransformations } from '@/lib/text-generation';
 
@@ -46,31 +49,44 @@ const MultiplayerModal = ({ open, onOpenChange, multiplayer }: MultiplayerModalP
     const [inputCode, setInputCode] = useState<string>("");
     const [isCreating, setIsCreating] = useState(false);
     const [isJoining, setIsJoining] = useState(false);
+    const [actionError, setActionError] = useState<AsyncErrorMetadata | null>(null);
     const [activeTab, setActiveTab] = useState("create");
 
     const handleCreateRoom = async () => {
+        if (isCreating) return;
         setIsCreating(true);
+        setActionError(null);
         try {
             await createRoom();
             toast.success("Room created! Share the code.");
         } catch (e) {
-            toast.error("Failed to create room.");
+            logAsyncError('multiplayer.createRoom', e);
+            setActionError(toUserSafeError(e, {
+                title: 'Room could not be created',
+                message: 'Realtime connection setup failed. Retry to create a room.',
+            }));
         } finally {
             setIsCreating(false);
         }
     };
 
     const handleJoinRoom = async () => {
+        if (isJoining) return;
         if (!inputCode || inputCode.length < 4) {
             toast.error("Please enter a valid room code");
             return;
         }
         setIsJoining(true);
+        setActionError(null);
         try {
             await joinRoom(inputCode.toUpperCase());
             // We don't close the modal immediately, we show the lobby
         } catch (e) {
-            toast.error("Failed to join room.");
+            logAsyncError('multiplayer.joinRoom', e);
+            setActionError(toUserSafeError(e, {
+                title: 'Room could not be joined',
+                message: 'We could not connect to that room. Check the code and retry.',
+            }));
         } finally {
             setIsJoining(false);
         }
@@ -125,6 +141,11 @@ const MultiplayerModal = ({ open, onOpenChange, multiplayer }: MultiplayerModalP
                 </div>
 
                 <div className="p-6 pt-2">
+                    <InlineError
+                        error={actionError}
+                        onRetry={activeTab === 'create' ? handleCreateRoom : handleJoinRoom}
+                        className="mb-4"
+                    />
                     {!roomCode ? (
                         // Initial View: Create or Join
                         <Tabs defaultValue="create" value={activeTab} onValueChange={setActiveTab} className="w-full">

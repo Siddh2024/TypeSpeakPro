@@ -1,3 +1,4 @@
+import { logAsyncError } from '@/types/async';
 
 const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
 
@@ -14,8 +15,14 @@ export interface AnalysisResult {
 }
 
 export const analyzeAnswer = async (question: string, transcript: string, level: string): Promise<AnalysisResult> => {
+    if (!transcript.trim()) {
+        throw new Error('EMPTY_TRANSCRIPT');
+    }
+
     if (!OPENAI_API_KEY) {
-        console.warn("No OpenAI API Key found. Returning simulated results.");
+        if (import.meta.env.DEV) {
+            console.warn("No OpenAI API Key found. Returning simulated results.");
+        }
         return simulateAnalysis(transcript);
     }
 
@@ -52,8 +59,16 @@ export const analyzeAnswer = async (question: string, transcript: string, level:
             })
         });
 
+        if (!response.ok) {
+            throw new Error(`AI_REQUEST_FAILED_${response.status}`);
+        }
+
         const data = await response.json();
-        const result = JSON.parse(data.choices[0].message.content);
+        const content = data?.choices?.[0]?.message?.content;
+        if (!content) {
+            throw new Error('AI_EMPTY_RESPONSE');
+        }
+        const result = JSON.parse(content);
 
         // Calculate overall
         result.overall_score = Math.round((result.grammar_score + result.fluency_score + result.relevance_score + result.confidence_score) / 4);
@@ -61,8 +76,8 @@ export const analyzeAnswer = async (question: string, transcript: string, level:
         return result;
 
     } catch (error) {
-        console.error("OpenAI API Error:", error);
-        return simulateAnalysis(transcript);
+        logAsyncError("ai.analyzeAnswer", error);
+        throw new Error('AI_ANALYSIS_UNAVAILABLE');
     }
 };
 
@@ -94,6 +109,10 @@ export interface WritingAnalysisResult {
 }
 
 export const analyzeWriting = async (text: string, topic: string): Promise<WritingAnalysisResult> => {
+    if (!text.trim()) {
+        throw new Error('EMPTY_WRITING_TEXT');
+    }
+
     if (!OPENAI_API_KEY) {
         return {
             grammar_score: 8,
@@ -138,20 +157,20 @@ export const analyzeWriting = async (text: string, topic: string): Promise<Writi
             })
         });
 
+        if (!response.ok) {
+            throw new Error(`AI_REQUEST_FAILED_${response.status}`);
+        }
+
         const data = await response.json();
-        return JSON.parse(data.choices[0].message.content);
+        const content = data?.choices?.[0]?.message?.content;
+        if (!content) {
+            throw new Error('AI_EMPTY_RESPONSE');
+        }
+        return JSON.parse(content);
 
     } catch (error) {
-        console.error("OpenAI API Error:", error);
-        return {
-            grammar_score: 0,
-            vocabulary_score: 0,
-            tone_score: 0,
-            overall_score: 0,
-            feedback: "Error connecting to AI service.",
-            corrections: [],
-            better_version: text
-        };
+        logAsyncError("ai.analyzeWriting", error);
+        throw new Error('AI_ANALYSIS_UNAVAILABLE');
     }
 };
 export interface ConversationResponse {
@@ -208,15 +227,19 @@ export const generateConversationResponse = async (
             })
         });
 
+        if (!response.ok) {
+            throw new Error(`AI_REQUEST_FAILED_${response.status}`);
+        }
+
         const data = await response.json();
-        return JSON.parse(data.choices[0].message.content);
+        const content = data?.choices?.[0]?.message?.content;
+        if (!content) {
+            throw new Error('AI_EMPTY_RESPONSE');
+        }
+        return JSON.parse(content);
 
     } catch (error) {
-        console.error("OpenAI Conversation Error:", error);
-        return {
-            reply: "I'm having trouble understanding. Can you say that again?",
-            feedback: 'average',
-            scores: { pronunciation: 3, grammar: 3, confidence: 3 }
-        };
+        logAsyncError("ai.generateConversationResponse", error);
+        throw new Error('AI_CONVERSATION_UNAVAILABLE');
     }
 };

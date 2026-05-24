@@ -70,8 +70,11 @@ const MicButton: React.FC<MicButtonProps> = ({
           showGlow={isRecording}
         >
           <button
+            type="button"
             onClick={isRecording ? onStop : onStart}
             disabled={disabled}
+            aria-label={isRecording ? 'Stop recording answer' : 'Start recording answer'}
+            aria-pressed={isRecording}
             className={cn(
               'rounded-full flex items-center justify-center transition-all duration-300',
               isRecording

@@ -1,7 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useState, useEffect, ReactNode } from 'react';
 import { jwtDecode } from "jwt-decode";
 import { toast } from "sonner";
 import { supabase } from '@/lib/supabase';
+import type { AsyncErrorMetadata } from '@/types/async';
+import { logAsyncError, toUserSafeError } from '@/types/async';
 
 interface User {
     id?: string; // Add ID from database
@@ -15,6 +17,8 @@ interface AuthContextType {
     user: User | null;
     isAuthenticated: boolean;
     isLoading: boolean;
+    authError: AsyncErrorMetadata | null;
+    retryAuth: () => void;
     login: (token: string) => void;
     logout: () => void;
     isLoginModalOpen: boolean;
@@ -27,10 +31,16 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [authError, setAuthError] = useState<AsyncErrorMetadata | null>(null);
+    const [authRetryKey, setAuthRetryKey] = useState(0);
     const [isLoginModalOpen, setLoginModalOpen] = useState(false);
 
-    const openLoginModal = () => setLoginModalOpen(true);
-    const closeLoginModal = () => setLoginModalOpen(false);
+    const openLoginModal = useCallback(() => setLoginModalOpen(true), []);
+    const closeLoginModal = useCallback(() => setLoginModalOpen(false), []);
+    const retryAuth = useCallback(() => {
+        setAuthError(null);
+        setAuthRetryKey(key => key + 1);
+    }, []);
 
     // Helper to fetch Supabase ID
     const fetchSupabaseUser = async (email: string) => {
@@ -43,16 +53,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             if (error) throw error;
             return data?.id;
         } catch (error) {
-            console.error("Error fetching user from Supabase:", error);
+            logAsyncError("auth.fetchSupabaseUser", error);
             return null;
         }
     }
 
     useEffect(() => {
+        let isMounted = true;
+
         const checkAuth = async () => {
-            const token = localStorage.getItem('google_token');
-            if (token) {
-                try {
+            setIsLoading(true);
+            setAuthError(null);
+
+            const timeout = new Promise<never>((_, reject) => {
+                window.setTimeout(() => reject(new Error('Session restore timed out')), 8000);
+            });
+
+            try {
+                await Promise.race([(async () => {
+                    const token = localStorage.getItem('google_token');
+                    if (!token) return;
+
                     const decoded: any = jwtDecode(token);
                     // Initial load from token
                     const initialUser = {
@@ -61,24 +82,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                         picture: decoded.picture,
                         sub: decoded.sub,
                     };
-                    setUser(initialUser);
+                    if (isMounted) setUser(initialUser);
 
                     // Then fetch the real DB ID
                     const id = await fetchSupabaseUser(decoded.email);
-                    console.log("Supabase ID fetched for auto-login:", id);
                     if (id) {
-                        setUser(prev => prev ? { ...prev, id } : null);
+                        if (isMounted) setUser(prev => prev ? { ...prev, id } : null);
                     }
-                } catch (error) {
-                    console.error("Invalid token found", error);
+                })(), timeout]);
+            } catch (error) {
+                logAsyncError("auth.bootstrap", error);
+                if (error instanceof Error && error.message !== 'Session restore timed out') {
                     localStorage.removeItem('google_token');
+                    if (isMounted) setUser(null);
+                } else if (isMounted) {
+                    setAuthError(toUserSafeError(error, {
+                        title: 'Could not restore your session',
+                        message: 'Authentication is taking longer than expected. Retry to restore your session.',
+                    }, {
+                        recoveryHint: 'If this keeps happening, sign in again from the home page.',
+                    }));
                 }
+            } finally {
+                if (isMounted) setIsLoading(false);
             }
-            setIsLoading(false);
         };
 
         checkAuth();
-    }, []);
+        return () => {
+            isMounted = false;
+        };
+    }, [authRetryKey]);
 
     const login = async (token: string) => {
         try {
@@ -99,7 +133,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
             // Sync with Supabase (Background)
             try {
-                console.log("Syncing user with Supabase...", userData.email);
                 const { data, error } = await supabase
                     .from('users')
                     .upsert({
@@ -114,17 +147,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 if (error) throw error;
 
                 if (data) {
-                    console.log("User synced! Got ID:", data.id);
                     // Update state with the real ID from DB
                     setUser(prev => prev ? { ...prev, id: data.id } : null);
                 }
             } catch (dbError) {
-                console.error("Database sync failed (non-fatal):", dbError);
+                logAsyncError("auth.syncUser", dbError);
+                toast.warning("Signed in, but profile sync needs a retry before saving progress.");
                 // We don't block login if DB fails, but user won't have ID for saving results
             }
 
         } catch (error) {
-            console.error("Login failed", error);
+            logAsyncError("auth.login", error);
             toast.error("Failed to login. Please try again.");
         }
     };
@@ -140,6 +173,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             user,
             isAuthenticated: !!user,
             isLoading,
+            authError,
+            retryAuth,
             login,
             logout,
             isLoginModalOpen,

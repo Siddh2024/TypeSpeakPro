@@ -9,9 +9,12 @@ import InterviewSidebar from '@/components/hr/InterviewSidebar';
 import QuestionCard from '@/components/hr/QuestionCard';
 import MicButton from '@/components/hr/MicButton';
 import FeedbackPanel from '@/components/hr/FeedbackPanel';
-import { AlertCircle, Loader2, Home } from 'lucide-react';
+import { AlertCircle, Home } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { InlineError, LoadingState } from '@/components/async';
+import { useAsyncState } from '@/hooks/useAsyncState';
+import { createAsyncError, logAsyncError, toUserSafeError } from '@/types/async';
 
 const MAX_DURATION = 60; // seconds
 
@@ -36,6 +39,8 @@ const HRSession: React.FC<HRSessionProps> = ({ onComplete, onCancel }) => {
     const [phase, setPhase] = useState<'question' | 'processing' | 'feedback'>('question');
     const [currentFeedback, setCurrentFeedback] = useState<QuestionFeedback | null>(null);
     const [dbSessionId, setDbSessionId] = useState<string | null>(null);
+    const processState = useAsyncState<void>();
+    const lastRecordingRef = React.useRef<{ blob: Blob; transcript: string } | null>(null);
 
     // Initialize Supabase Session
     useEffect(() => {
@@ -57,9 +62,13 @@ const HRSession: React.FC<HRSessionProps> = ({ onComplete, onCancel }) => {
                     .single();
 
                 if (data) setDbSessionId(data.id);
-                if (error) console.error('Error creating DB session:', error);
+                if (error) throw error;
             } catch (err) {
-                console.error('Session init error:', err);
+                logAsyncError('interview.initSession', err);
+                processState.setError(toUserSafeError(err, {
+                    title: 'Interview progress will not save yet',
+                    message: 'The practice session is available, but database saving could not start.',
+                }));
             }
         };
 
@@ -118,11 +127,17 @@ const HRSession: React.FC<HRSessionProps> = ({ onComplete, onCancel }) => {
     });
 
     const processAnswer = async (blob: Blob, finalTranscript: string) => {
+        if (processState.isBusy) return;
+        lastRecordingRef.current = { blob, transcript: finalTranscript };
         setPhase('processing');
+        processState.setStatus('evaluating');
         const question = getCurrentQuestion();
         if (!question) return;
 
         try {
+            if (!finalTranscript.trim()) {
+                throw new Error('EMPTY_TRANSCRIPT');
+            }
             // 1. Analyze
             const analysis = await analyzeAnswer(question.text, finalTranscript, session?.level || 'professional');
 
@@ -143,23 +158,41 @@ const HRSession: React.FC<HRSessionProps> = ({ onComplete, onCancel }) => {
 
             // 3. Save to Supabase
             if (dbSessionId) {
-                await supabase.from('interview_answers').insert({
+                const { error } = await supabase.from('interview_answers').insert({
                     session_id: dbSessionId,
                     question: question.text,
                     transcript: finalTranscript,
                     analysis: analysis,
                     duration: MAX_DURATION - timeRemaining // approx
                 });
+                if (error) throw error;
             }
 
             setCurrentFeedback(feedback);
             submitAnswer(feedback);
+            processState.setData(undefined, 'success');
             setPhase('feedback');
 
         } catch (err) {
-            console.error("Processing error:", err);
-            toast({ variant: 'destructive', title: 'Analysis Failed', description: 'Could not analyze answer.' });
+            logAsyncError("interview.processAnswer", err);
+            processState.setError(
+                err instanceof Error && err.message === 'EMPTY_TRANSCRIPT'
+                    ? createAsyncError('No answer detected', 'We did not capture speech for this answer.', {
+                        recoveryHint: 'Check the microphone and record again.',
+                    })
+                    : toUserSafeError(err, {
+                        title: 'Analysis failed',
+                        message: 'We could not analyze or save this answer. Please retry.',
+                    })
+            );
+            toast({ variant: 'destructive', title: 'Analysis Failed', description: 'Please retry from the recovery panel.' });
             setPhase('question');
+        }
+    };
+
+    const retryProcessing = () => {
+        if (lastRecordingRef.current) {
+            processAnswer(lastRecordingRef.current.blob, lastRecordingRef.current.transcript);
         }
     };
 
@@ -205,12 +238,12 @@ const HRSession: React.FC<HRSessionProps> = ({ onComplete, onCancel }) => {
             toast({
                 variant: 'destructive',
                 title: 'Microphone Error',
-                description: recorderError,
+                description: recorderError.message,
             });
         }
     }, [recorderError, toast]);
 
-    if (!session) return <div>Loading Session...</div>;
+    if (!session) return <LoadingState title="Loading interview session" description="Preparing your questions." />;
     if (session.isComplete) return null;
 
     const question = getCurrentQuestion();
@@ -274,6 +307,11 @@ const HRSession: React.FC<HRSessionProps> = ({ onComplete, onCancel }) => {
                                     </p>
                                 </div>
                             )}
+                            <InlineError
+                                error={recorderError || processState.error}
+                                onRetry={recorderError ? startRecording : retryProcessing}
+                                className="mb-6 w-full max-w-xl"
+                            />
 
                             <div className="scale-110 mb-4">
                                 <MicButton
@@ -298,15 +336,11 @@ const HRSession: React.FC<HRSessionProps> = ({ onComplete, onCancel }) => {
 
                 {/* Processing phase */}
                 {phase === 'processing' && (
-                    <div className="flex flex-col items-center justify-center min-h-[400px] animate-fade-in">
-                        <Loader2 className="w-16 h-16 text-primary mb-6 animate-spin" />
-                        <h2 className="font-heading text-3xl font-bold mb-3 text-foreground">
-                            Analyzing Response...
-                        </h2>
-                        <p className="text-xl text-muted-foreground">
-                            Generating AI feedback on your answer.
-                        </p>
-                    </div>
+                    <LoadingState
+                        title="Analyzing response"
+                        description="Generating AI feedback on your answer."
+                        className="min-h-[400px]"
+                    />
                 )}
 
                 {/* Feedback phase */}
