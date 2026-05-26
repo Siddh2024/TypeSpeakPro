@@ -40,6 +40,7 @@ interface TypingTestProps {
 
 const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, initialConfig }: TypingTestProps) => {
     const { user } = useAuth();
+    const [theme, setTheme] = useState("neon");
     // Use AI hook if aiMode is true, otherwise standard multiplayer
     // Cast to explicit 'any' to bypass strict return type mismatch between hooks for now, 
     // as we just need the common interface in this component
@@ -422,11 +423,21 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
         if (!targetText) return null; // Prevent crash if undefined
         return targetText.split('').map((char, index) => {
             // Colors: Untyped = very muted, Typed Correct = bright, Error = red
-            let className = 'text-muted-foreground/40 transition-colors duration-200';
-
+            let className =
+                theme === "neon"
+                    ? 'text-cyan-400 transition-colors duration-200'
+                    : theme === "minimal"
+                        ? 'text-gray-400 transition-colors duration-200'
+                        : 'text-green-400 transition-colors duration-200';
             if (index < userInput.length) {
                 const isCorrect = char === userInput[index];
-                className = isCorrect ? 'text-foreground' : 'text-red-500 bg-red-500/10';
+                className = isCorrect
+                    ? theme === "neon"
+                        ? 'text-cyan-200'
+                        : theme === "minimal"
+                            ? 'text-white'
+                            : 'text-green-200'
+                    : 'text-red-500 bg-red-500/10';
             }
 
             const isCurrent = index === activeCharIndex;
@@ -714,7 +725,28 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
             </div>
 
             {/* Results Modal Overlay */}
+            <div className="mb-4 flex gap-2 justify-center">
+                <button
+                    onClick={() => setTheme("neon")}
+                    className="px-3 py-1 rounded bg-cyan-500 text-black"
+                >
+                    Neon
+                </button>
 
+                <button
+                    onClick={() => setTheme("minimal")}
+                    className="px-3 py-1 rounded bg-gray-500 text-white"
+                >
+                    Minimal
+                </button>
+
+                <button
+                    onClick={() => setTheme("retro")}
+                    className="px-3 py-1 rounded bg-green-700 text-white"
+                >
+                    Retro
+                </button>
+            </div>
 
             <div className="flex justify-center pt-8">
                 <Button variant="ghost" size="lg" onClick={resetTest} className="opacity-50 hover:opacity-100 transition-opacity">
