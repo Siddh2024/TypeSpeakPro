@@ -40,6 +40,7 @@ const MotionTr = motion.tr as any;
 
 const Leaderboard = () => {
     const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+    const [filter, setFilter] = useState<'today' | 'week' | 'all'>('all');
     const navigate = useNavigate();
 
     const triggerFireworks = () => {
@@ -64,20 +65,65 @@ const Leaderboard = () => {
     };
 
     const fetchLeaderboard = useCallback(async () => {
-        const { data, error } = await supabase
-            .rpc('get_leaderboard', { limit_count: 50 });
-        if (error) throw error;
-        const sorted = (data ?? []).map((entry: any, index: number) => ({
-            ...entry,
-            rank: index + 1,
-            users: {
-                name: entry.name,
-                picture: entry.picture,
-                country: entry.country,
-            },
-        }));
-        setEntries(sorted);
-    }, []);
+            const now = new Date();
+            let startDate: string | null = null;
+
+            if (filter === 'today') {
+                const start = new Date(now);
+                start.setHours(0, 0, 0, 0);
+                startDate = start.toISOString();
+            } else if (filter === 'week') {
+                const start = new Date(now);
+                start.setDate(now.getDate() - 7);
+                startDate = start.toISOString();
+            }
+
+            let query = supabase
+                .from('test_results')
+                .select(`
+                    user_id,
+                    wpm,
+                    accuracy,
+                    created_at,
+                    users (
+                        name,
+                        picture,
+                        country
+                    )
+                `)
+                .order('wpm', { ascending: false })
+                .limit(100);
+
+            if (startDate) {
+                query = query.gte('created_at', startDate);
+            }
+
+            const { data, error } = await query;
+
+            if (error) throw error;
+
+            // Client-side deduplication
+            const uniqueEntries: { [key: string]: any } = {};
+            data?.forEach((entry: any) => {
+                if (!uniqueEntries[entry.user_id]) {
+                    uniqueEntries[entry.user_id] = entry;
+                } else {
+                    if (entry.wpm > uniqueEntries[entry.user_id].wpm) {
+                        uniqueEntries[entry.user_id] = entry;
+                    }
+                }
+            });
+
+            const sorted = Object.values(uniqueEntries)
+                .sort((a: any, b: any) => b.wpm - a.wpm)
+                .slice(0, 50)
+                .map((entry: any, index: number) => ({
+                    ...entry,
+                    rank: index + 1
+                }));
+
+            setEntries(sorted);
+    }, [filter]);
 
     const leaderboardAction = useRetryableAction(fetchLeaderboard, {
         errorTitle: 'Leaderboard could not load',
@@ -88,7 +134,7 @@ const Leaderboard = () => {
     useEffect(() => {
         leaderboardAction.run();
         triggerFireworks();
-    }, []);
+    }, [filter]);
 
     const getRankIcon = (rank: number) => {
         if (rank === 1) return <Crown className="w-6 h-6 text-yellow-400 fill-yellow-400/20" />;
@@ -151,6 +197,23 @@ const Leaderboard = () => {
                     <p className="text-muted-foreground max-w-lg mx-auto text-lg">
                         The fastest typists in the world.
                     </p>
+
+                    {/* Filter Tabs */}
+                    <div className="flex items-center justify-center gap-2 mt-4">
+                        {(['today', 'week', 'all'] as const).map((f) => (
+                            <button
+                                key={f}
+                                onClick={() => setFilter(f)}
+                                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                                    filter === f
+                                        ? 'bg-teal-500 text-white'
+                                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                                }`}
+                            >
+                                {f === 'today' ? 'Today' : f === 'week' ? 'This Week' : 'All Time'}
+                            </button>
+                        ))}
+                    </div>
                 </motion.div>
 
                 {/* Table */}
