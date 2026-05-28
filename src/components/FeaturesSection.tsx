@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Keyboard, Mic, MessageSquare, BarChart3, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import AIFeedbackModal from './modals/AIFeedbackModal';
 
 const features = [
   {
@@ -28,19 +30,29 @@ const features = [
     title: 'Progress Dashboard',
     description: 'Visualize your improvement with charts, streaks, and detailed history.',
     color: 'success',
-    route:'/dashboard'
+    route: '/dashboard',
   },
   {
     icon: Sparkles,
     title: 'AI Feedback',
     description: 'Get smart suggestions powered by AI to accelerate your improvement.',
     color: 'primary',
-    route: '#',
+    route: '#ai-feedback', // Special marker - opens modal instead of navigating
   },
 ];
 
 const FeaturesSection = () => {
   const navigate = useNavigate();
+  const [isAIFeedbackModalOpen, setIsAIFeedbackModalOpen] = useState(false);
+
+  const handleCardClick = (route: string) => {
+    if (route === '#ai-feedback') {
+      setIsAIFeedbackModalOpen(true);
+    } else {
+      navigate(route);
+    }
+  };
+
   const getColorClasses = (color: string) => {
     const colors = {
       primary: 'bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground',
@@ -52,50 +64,58 @@ const FeaturesSection = () => {
   };
 
   return (
-    <section id="features" className="py-24 relative">
-      {/* Background */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,hsl(186_100%_50%/0.05)_0%,transparent_70%)]" />
+    <>
+      <section id="features" className="py-24 relative">
+        {/* Background */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,hsl(186_100%_50%/0.05)_0%,transparent_70%)]" />
 
-      <div className="container mx-auto px-4 relative z-10">
-        {/* Section Header */}
-        <div className="text-center max-w-2xl mx-auto mb-16">
-          <span className="text-primary font-mono text-sm tracking-wider uppercase mb-4 block">
-            Features
-          </span>
-          <h2 className="text-3xl md:text-5xl font-bold mb-6">
-            Everything You Need to{' '}
-            <span className="gradient-text">Excel</span>
-          </h2>
-          <p className="text-muted-foreground text-lg">
-            A comprehensive platform designed to improve both your typing speed and communication skills.
-          </p>
-        </div>
+        <div className="container mx-auto px-4 relative z-10">
+          {/* Section Header */}
+          <div className="text-center max-w-2xl mx-auto mb-16">
+            <span className="text-primary font-mono text-sm tracking-wider uppercase mb-4 block">
+              Features
+            </span>
+            <h2 className="text-3xl md:text-5xl font-bold mb-6">
+              Everything You Need to{' '}
+              <span className="gradient-text">Excel</span>
+            </h2>
+            <p className="text-muted-foreground text-lg">
+              A comprehensive platform designed to improve both your typing speed and communication skills.
+            </p>
+          </div>
 
-        {/* Features Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-          {features.map((feature, index) => (
-            <div
-              key={feature.title}
-              onClick={() => navigate(feature.route)}
-              className="group glass rounded-2xl p-8 card-hover cursor-pointer"
-              style={{ animationDelay: `${index * 0.1}s` }}
-            >
-              <div className={`w-14 h-14 rounded-xl flex items-center justify-center mb-6 transition-all duration-300 ${getColorClasses(feature.color)}`}>
-                <feature.icon className="w-7 h-7" />
+          {/* Features Grid */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+            {features.map((feature, index) => (
+              <div
+                key={feature.title}
+                onClick={() => handleCardClick(feature.route)}
+                className="group glass rounded-2xl p-8 card-hover cursor-pointer"
+                style={{ animationDelay: `${index * 0.1}s` }}
+              >
+                <div className={`w-14 h-14 rounded-xl flex items-center justify-center mb-6 transition-all duration-300 ${getColorClasses(feature.color)}`}>
+                  <feature.icon className="w-7 h-7" />
+                </div>
+
+                <h3 className="text-xl font-semibold mb-3 text-foreground group-hover:text-primary transition-colors">
+                  {feature.title}
+                </h3>
+
+                <p className="text-muted-foreground leading-relaxed">
+                  {feature.description}
+                </p>
               </div>
-              
-              <h3 className="text-xl font-semibold mb-3 text-foreground group-hover:text-primary transition-colors">
-                {feature.title}
-              </h3>
-              
-              <p className="text-muted-foreground leading-relaxed">
-                {feature.description}
-              </p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+
+      {/* AI Feedback Modal */}
+      <AIFeedbackModal
+        isOpen={isAIFeedbackModalOpen}
+        onClose={() => setIsAIFeedbackModalOpen(false)}
+      />
+    </>
   );
 };
 
