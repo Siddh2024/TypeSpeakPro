@@ -31,9 +31,90 @@ interface TestResultsProps {
         errorCount: number;
         time: number;
         history: { time: number; wpm: number; raw: number }[];
+        keystrokeData: { key: string; latency: number; isError: boolean }[];
     };
     onRestart: () => void;
 }
+
+const KEYBOARD_ROWS = [
+    ['q','w','e','r','t','y','u','i','o','p'],
+    ['a','s','d','f','g','h','j','k','l'],
+    ['z','x','c','v','b','n','m'],
+];
+
+const KeyHeatmap = ({ keystrokeData }: { keystrokeData: { key: string; latency: number; isError: boolean }[] }) => {
+    // Aggregate avg latency per key (ignore first keystroke with 0 latency)
+    const keyStats = keystrokeData.reduce<Record<string, { total: number; count: number; errors: number }>>((acc, k) => {
+        if (k.latency === 0) return acc;
+        if (!acc[k.key]) acc[k.key] = { total: 0, count: 0, errors: 0 };
+        acc[k.key].total += k.latency;
+        acc[k.key].count += 1;
+        if (k.isError) acc[k.key].errors += 1;
+        return acc;
+    }, {});
+
+    const latencies = Object.values(keyStats).map(v => v.total / v.count);
+    const minL = Math.min(...latencies);
+    const maxL = Math.max(...latencies);
+
+    const getColor = (key: string) => {
+        const s = keyStats[key];
+        if (!s || s.count === 0) return 'bg-white/5 text-white/20';
+        const avg = s.total / s.count;
+        const norm = maxL === minL ? 0.5 : (avg - minL) / (maxL - minL);
+        if (norm < 0.33) return 'bg-emerald-500/30 text-emerald-300 border-emerald-500/40';
+        if (norm < 0.66) return 'bg-yellow-500/30 text-yellow-300 border-yellow-500/40';
+        return 'bg-red-500/30 text-red-300 border-red-500/40';
+    };
+
+    const slowestKeys = Object.entries(keyStats)
+        .map(([key, s]) => ({ key, avg: Math.round(s.total / s.count), errors: s.errors }))
+        .sort((a, b) => b.avg - a.avg)
+        .slice(0, 5);
+
+    if (keystrokeData.length < 5) return null;
+
+    return (
+        <div className="mt-6 bg-secondary/10 rounded-2xl border border-white/5 p-4 md:p-6">
+            <h3 className="text-xs font-medium text-muted-foreground mb-4 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-yellow-400"></span>
+                Keystroke Heatmap
+            </h3>
+            <div className="flex flex-col items-center gap-1.5 mb-4">
+                {KEYBOARD_ROWS.map((row, ri) => (
+                    <div key={ri} className="flex gap-1.5" style={{ marginLeft: ri === 1 ? '0.75rem' : ri === 2 ? '1.5rem' : 0 }}>
+                        {row.map(key => (
+                            <div
+                                key={key}
+                                title={keyStats[key] ? `avg ${Math.round(keyStats[key].total / keyStats[key].count)}ms` : 'no data'}
+                                className={cn(
+                                    'w-8 h-8 rounded-md border flex items-center justify-center text-xs font-mono font-bold transition-all',
+                                    getColor(key)
+                                )}
+                            >
+                                {key}
+                            </div>
+                        ))}
+                    </div>
+                ))}
+            </div>
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500/40"></span>Fast</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-yellow-500/40"></span>Medium</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/40"></span>Slow</span>
+                </div>
+                {slowestKeys.length > 0 && (
+                    <div className="text-[10px] text-muted-foreground">
+                        Slowest: {slowestKeys.map(k => (
+                            <span key={k.key} className="font-mono text-red-400 ml-1">{k.key}({k.avg}ms)</span>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
 
 const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -157,50 +238,53 @@ const TestResults = ({ open, onOpenChange, stats, onRestart }: TestResultsProps)
                         </div>
 
                         {/* Chart Column */}
-                        <div className="md:col-span-8 bg-secondary/10 rounded-2xl border border-white/5 p-4 md:p-6 flex flex-col">
-                            <h3 className="text-xs font-medium text-muted-foreground mb-4 flex items-center gap-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
-                                Speed Analysis (WPM)
-                            </h3>
-                            <div className="flex-1 min-h-[200px] w-full">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={stats.history} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
-                                        <defs>
-                                            <linearGradient id="colorWpmModal" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#2dd4bf" stopOpacity={0.4} />
-                                                <stop offset="95%" stopColor="#2dd4bf" stopOpacity={0} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.3} vertical={false} />
-                                        <XAxis
-                                            dataKey="time"
-                                            stroke="#475569"
-                                            tick={{ fill: '#94a3b8', fontSize: 10 }}
-                                            tickFormatter={(val) => `${val}s`}
-                                            tickLine={false}
-                                            axisLine={false}
-                                            dy={5}
-                                        />
-                                        <YAxis
-                                            stroke="#475569"
-                                            tick={{ fill: '#94a3b8', fontSize: 10 }}
-                                            tickLine={false}
-                                            axisLine={false}
-                                            domain={['dataMin - 5', 'auto']}
-                                        />
-                                        <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }} />
-                                        <Area
-                                            type="monotone"
-                                            dataKey="wpm"
-                                            stroke="#2dd4bf"
-                                            strokeWidth={2}
-                                            fillOpacity={1}
-                                            fill="url(#colorWpmModal)"
-                                            animationDuration={1500} // Smooth entry animation
-                                        />
-                                    </AreaChart>
-                                </ResponsiveContainer>
+                        <div className="md:col-span-8 space-y-0">
+                            <div className="bg-secondary/10 rounded-2xl border border-white/5 p-4 md:p-6 flex flex-col">
+                                <h3 className="text-xs font-medium text-muted-foreground mb-4 flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                                    Speed Analysis (WPM)
+                                </h3>
+                                <div className="flex-1 min-h-[200px] w-full">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={stats.history} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
+                                            <defs>
+                                                <linearGradient id="colorWpmModal" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#2dd4bf" stopOpacity={0.4} />
+                                                    <stop offset="95%" stopColor="#2dd4bf" stopOpacity={0} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.3} vertical={false} />
+                                            <XAxis
+                                                dataKey="time"
+                                                stroke="#475569"
+                                                tick={{ fill: '#94a3b8', fontSize: 10 }}
+                                                tickFormatter={(val) => `${val}s`}
+                                                tickLine={false}
+                                                axisLine={false}
+                                                dy={5}
+                                            />
+                                            <YAxis
+                                                stroke="#475569"
+                                                tick={{ fill: '#94a3b8', fontSize: 10 }}
+                                                tickLine={false}
+                                                axisLine={false}
+                                                domain={['dataMin - 5', 'auto']}
+                                            />
+                                            <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }} />
+                                            <Area
+                                                type="monotone"
+                                                dataKey="wpm"
+                                                stroke="#2dd4bf"
+                                                strokeWidth={2}
+                                                fillOpacity={1}
+                                                fill="url(#colorWpmModal)"
+                                                animationDuration={1500}
+                                            />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
                             </div>
+                            <KeyHeatmap keystrokeData={stats.keystrokeData} />
                         </div>
                     </div>
 
