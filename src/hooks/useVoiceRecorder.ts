@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { isMediaRecorderSupported, isSpeechRecognitionSupported } from '@/lib/runtime-guards';
+import { createAsyncError, type AsyncErrorMetadata, type AsyncStatus } from '@/types/async';
 
 interface UseVoiceRecorderProps {
   maxDuration?: number; // in seconds
@@ -31,27 +32,31 @@ declare global {
 /**
  * Maps microphone/media errors to user-friendly messages.
  */
-function mapMediaError(err: unknown): string {
+function mapMediaError(err: unknown): AsyncErrorMetadata {
   if (err instanceof DOMException) {
     switch (err.name) {
       case 'NotAllowedError':
-        return 'Microphone access was denied. Please allow microphone permission in your browser settings.';
+        return createAsyncError(
+          'Microphone access failed',
+          'Microphone access was denied. Please allow microphone permission in your browser settings.',
+          { code: err.name, cause: err }
+        );
       case 'NotFoundError':
-        return 'No microphone was found. Please connect a microphone and try again.';
+        return createAsyncError('Microphone access failed', 'No microphone was found. Please connect a microphone and try again.', { code: err.name, cause: err });
       case 'NotReadableError':
-        return 'Your microphone is currently in use by another application.';
+        return createAsyncError('Microphone access failed', 'Your microphone is currently in use by another application.', { code: err.name, cause: err });
       case 'OverconstrainedError':
-        return 'Microphone does not meet the required constraints.';
+        return createAsyncError('Microphone access failed', 'Microphone does not meet the required constraints.', { code: err.name, cause: err });
       case 'AbortError':
-        return 'Microphone access was interrupted. Please try again.';
+        return createAsyncError('Microphone access failed', 'Microphone access was interrupted. Please try again.', { code: err.name, cause: err });
       default:
-        return `Microphone error: ${err.message}`;
+        return createAsyncError('Microphone access failed', `Microphone error: ${err.message}`, { code: err.name, cause: err });
     }
   }
   if (err instanceof Error) {
-    return err.message;
+    return createAsyncError('Microphone access failed', err.message, { cause: err });
   }
-  return 'Failed to access microphone.';
+  return createAsyncError('Microphone access failed', 'Failed to access microphone.', { cause: err });
 }
 
 export const useVoiceRecorder = ({
@@ -87,6 +92,11 @@ export const useVoiceRecorder = ({
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+  }, []);
+
+  const clearError = useCallback(() => {
+    setError(null);
+    setStatus(prev => (prev === 'error' || prev === 'retryable-error' ? 'idle' : prev));
   }, []);
 
   const stopRecording = useCallback(() => {
@@ -139,7 +149,11 @@ export const useVoiceRecorder = ({
   const startRecording = useCallback(async () => {
     // Runtime capability check
     if (!isMediaRecorderSupported()) {
-      setError('Audio recording is not supported in this browser. Please use a modern browser like Chrome or Edge.');
+      setError(createAsyncError(
+        'Audio recording unavailable',
+        'Audio recording is not supported in this browser. Please use a modern browser like Chrome or Edge.'
+      ));
+      setStatus('retryable-error');
       return;
     }
 
@@ -263,6 +277,7 @@ export const useVoiceRecorder = ({
     } catch (err) {
       setHasPermission(false);
       setError(mapMediaError(err));
+      setStatus('retryable-error');
       console.error('Error accessing microphone:', err);
     }
   }, [maxDuration, isRecording, onRecordingComplete, onTimeUpdate, stopRecording]);

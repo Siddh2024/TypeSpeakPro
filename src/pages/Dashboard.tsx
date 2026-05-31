@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -13,6 +13,7 @@ import { useRetryableAction } from '@/hooks/useRetryableAction';
 const Dashboard = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
+    const fetchVersionRef = useRef(0);
     const [fullHistory, setFullHistory] = useState<any[]>([]);
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
     const [stats, setStats] = useState({
@@ -32,6 +33,7 @@ const Dashboard = () => {
 
     const fetchDashboardData = useCallback(async () => {
         if (!user?.id) return;
+        const fetchVersion = ++fetchVersionRef.current;
 
         // Fetch all results for the user for general stats
         const { data: allResults, error } = await supabase
@@ -53,6 +55,8 @@ const Dashboard = () => {
             throw practiceError;
         }
 
+        if (fetchVersion !== fetchVersionRef.current) return;
+
         setFullHistory(allResults);
 
         // 1. Calculate Aggregates
@@ -73,6 +77,8 @@ const Dashboard = () => {
 
             rank = (count || 0) + 1;
         }
+
+        if (fetchVersion !== fetchVersionRef.current) return;
 
         // Calculate Practice Points & Accuracy
         const voiceResults = practiceResults ? practiceResults.filter((r: any) => r.practice_type === 'listening') : [];

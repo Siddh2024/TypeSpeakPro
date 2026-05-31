@@ -3,6 +3,8 @@ import { supabase } from '@/lib/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import { logAsyncError } from '@/types/async';
+import { createMutationLock } from '@/lib/mutation-locks';
+import { createRealtimeMeta, isFreshRealtimeEvent, pruneStaleByHeartbeat, upsertById } from '@/lib/realtime-guards';
 
 export type GameState = 'lobby' | 'countdown' | 'racing' | 'finished';
 
@@ -17,6 +19,7 @@ export interface Player {
     avatarUrl?: string;
     accuracy?: number;
     completionTime?: number;
+    lastSeenAt?: number;
 }
 
 export interface RoomConfig {
@@ -54,11 +57,16 @@ export const useMultiplayer = (user: any) => {
     }, [countdown]);
 
     const channelRef = useRef<RealtimeChannel | null>(null);
+    const activeSubscriptionRef = useRef(0);
+    const eventClockRef = useRef(new Map<string, number>());
+    const mutationLockRef = useRef(createMutationLock());
+    const sendSequenceRef = useRef(0);
 
     // Generate a random color for the player
     const myColor = useRef(`hsl(${Math.random() * 360}, 70%, 50%)`).current;
 
     const cleanup = useCallback(async () => {
+        activeSubscriptionRef.current += 1;
         try {
             if (channelRef.current) {
                 await supabase.removeChannel(channelRef.current);
@@ -73,9 +81,13 @@ export const useMultiplayer = (user: any) => {
     }, []);
 
     const joinRoom = useCallback(async (code: string, isCreating: boolean = false) => {
+        const joinLock = mutationLockRef.current.acquire(`join:${code}`, 1000);
+        if (!joinLock.acquired) return;
+
         await cleanup();
 
         try {
+            const subscriptionId = activeSubscriptionRef.current;
             const channel = supabase.channel(`typing_room_${code}`, {
                 config: {
                     broadcast: { self: true } // We want to receive our own events for consistency
@@ -90,11 +102,19 @@ export const useMultiplayer = (user: any) => {
 
             // 1. New Player Joined (or existing players announcing themselves)
             channel.on('broadcast', { event: 'player_join' }, ({ payload }) => {
+                if (subscriptionId !== activeSubscriptionRef.current) return;
+                if (!isFreshRealtimeEvent(eventClockRef.current, `join:${payload.id}`, payload.meta?.eventTs)) return;
                 if (import.meta.env.DEV) console.log("Player joined:", payload);
                 setPlayers(prev => {
-                    const exists = prev.find(p => p.id === payload.id);
-                    if (exists) return prev;
-                    return [...prev, { ...payload, isReady: false, progress: 0, wpm: 0 }];
+                    const existing = prev.find(p => p.id === payload.id);
+                    return upsertById(prev, {
+                        ...existing,
+                        ...payload,
+                        isReady: existing?.isReady ?? payload.isReady ?? false,
+                        progress: existing?.progress ?? payload.progress ?? 0,
+                        wpm: existing?.wpm ?? payload.wpm ?? 0,
+                        lastSeenAt: Date.now(),
+                    });
                 });
 
                 // If I am Host, and a new player joined, I should probably re-broadcast the room config
@@ -104,7 +124,7 @@ export const useMultiplayer = (user: any) => {
                         channel.send({
                             type: 'broadcast',
                             event: 'room_config',
-                            payload: roomConfig
+                            payload: { ...roomConfig, meta: createRealtimeMeta(++sendSequenceRef.current) }
                         });
                     }, 500);
                 }
@@ -112,20 +132,27 @@ export const useMultiplayer = (user: any) => {
 
             // 2. Room Config Sync
             channel.on('broadcast', { event: 'room_config' }, ({ payload }) => {
+                if (subscriptionId !== activeSubscriptionRef.current) return;
+                if (!isFreshRealtimeEvent(eventClockRef.current, 'room_config', payload.meta?.eventTs)) return;
                 if (import.meta.env.DEV) console.log("Received Room Config:", payload);
-                setRoomConfig(payload);
+                const { meta: _meta, ...config } = payload;
+                setRoomConfig(config);
             });
 
             // 3. Player Ready Toggle
             channel.on('broadcast', { event: 'player_ready' }, ({ payload }) => {
+                if (subscriptionId !== activeSubscriptionRef.current) return;
+                if (!isFreshRealtimeEvent(eventClockRef.current, `ready:${payload.id}`, payload.meta?.eventTs)) return;
                 setPlayers(prev => prev.map(p =>
-                    p.id === payload.id ? { ...p, isReady: payload.isReady } : p
+                    p.id === payload.id ? { ...p, isReady: payload.isReady, lastSeenAt: Date.now() } : p
                 ));
             });
 
             // 4. Game Start (Countdown)
             channel.on('broadcast', { event: 'game_start' }, ({ payload }) => {
-                setStartTime(payload.startTime);
+                if (subscriptionId !== activeSubscriptionRef.current) return;
+                if (!isFreshRealtimeEvent(eventClockRef.current, 'game_start', payload.meta?.eventTs)) return;
+                setStartTime(payload.startTime ?? Date.now() + 3000);
                 setGameState('countdown');
                 // Reset progress
                 setPlayers(prev => prev.map(p => ({ ...p, progress: 0, wpm: 0, rank: undefined })));
@@ -133,13 +160,17 @@ export const useMultiplayer = (user: any) => {
 
             // 5. Progress Updates
             channel.on('broadcast', { event: 'player_progress' }, ({ payload }) => {
+                if (subscriptionId !== activeSubscriptionRef.current) return;
+                if (!isFreshRealtimeEvent(eventClockRef.current, `progress:${payload.userId}`, payload.meta?.eventTs)) return;
                 setPlayers(prev => prev.map(p =>
-                    p.id === payload.userId ? { ...p, progress: payload.progress, wpm: payload.wpm } : p
+                    p.id === payload.userId ? { ...p, progress: Math.max(p.progress, payload.progress), wpm: payload.wpm, lastSeenAt: Date.now() } : p
                 ));
             });
 
             // 6. Player Finished
             channel.on('broadcast', { event: 'player_complete' }, ({ payload }) => {
+                if (subscriptionId !== activeSubscriptionRef.current) return;
+                if (!isFreshRealtimeEvent(eventClockRef.current, `complete:${payload.userId}`, payload.meta?.eventTs)) return;
                 setPlayers(prev => {
                     const existing = prev.find(p => p.id === payload.userId);
                     // If already marked as finished/ranked, ignore (deduplicate)
@@ -158,6 +189,7 @@ export const useMultiplayer = (user: any) => {
 
             // Subscribe
             const subscription = channel.subscribe(async (status) => {
+                if (subscriptionId !== activeSubscriptionRef.current) return;
                 if (import.meta.env.DEV) console.log(`[useMultiplayer] Room ${code} subscription status:`, status);
                 if (status === 'SUBSCRIBED') {
                     // Announce self
@@ -168,14 +200,15 @@ export const useMultiplayer = (user: any) => {
                         progress: 0,
                         wpm: 0,
                         color: myColor || '#666',
-                        avatarUrl: user?.user_metadata?.avatar_url || null
+                        avatarUrl: user?.user_metadata?.avatar_url || null,
+                        lastSeenAt: Date.now(),
                     };
 
                     try {
                         await channel.send({
                             type: 'broadcast',
                             event: 'player_join',
-                            payload: myProfile
+                            payload: { ...myProfile, meta: createRealtimeMeta(++sendSequenceRef.current) }
                         });
                     } catch (err) {
                         logAsyncError("multiplayer.broadcastJoin", err);
@@ -208,9 +241,28 @@ export const useMultiplayer = (user: any) => {
             logAsyncError("multiplayer.joinRoom", error);
             toast.error("Failed to join room");
             throw error;
+        } finally {
+            joinLock.release();
         }
 
     }, [user, myColor, cleanup, roomConfig, playerId]); // Depend on roomConfig so Host can re-broadcast it
+
+    useEffect(() => {
+        if (!roomCode) return;
+        const pruneTimer = setInterval(() => {
+            setPlayers(prev => pruneStaleByHeartbeat(prev, Date.now(), 45000));
+        }, 15000);
+
+        const onBeforeUnload = () => {
+            void cleanup();
+        };
+
+        window.addEventListener('beforeunload', onBeforeUnload);
+        return () => {
+            clearInterval(pruneTimer);
+            window.removeEventListener('beforeunload', onBeforeUnload);
+        };
+    }, [roomCode, cleanup]);
 
     const createRoom = useCallback(async () => {
         // Generate 6-digit numeric code
@@ -225,7 +277,7 @@ export const useMultiplayer = (user: any) => {
         await channelRef.current.send({
             type: 'broadcast',
             event: 'room_config',
-            payload: config
+            payload: { ...config, meta: createRealtimeMeta(++sendSequenceRef.current) }
         });
     }, []);
 
@@ -246,7 +298,7 @@ export const useMultiplayer = (user: any) => {
             await channelRef.current.send({
                 type: 'broadcast',
                 event: 'player_ready',
-                payload: { id: myId, isReady: newStatus }
+                payload: { id: myId, isReady: newStatus, meta: createRealtimeMeta(++sendSequenceRef.current) }
             });
         } catch (err) {
             logAsyncError("multiplayer.ready", err);
@@ -257,17 +309,25 @@ export const useMultiplayer = (user: any) => {
 
     const startGame = useCallback(async () => {
         if (!channelRef.current || !isHost) return;
+        const lock = mutationLockRef.current.acquire('game:start', 2500);
+        if (!lock.acquired) return;
 
         // Manual local trigger to ensure start even if broadcast fails
+        const nextStartTime = Date.now() + 3000;
+        setStartTime(nextStartTime);
         setCountDown(3);
         setGameState('countdown');
 
-        // Broadcast to others
-        await channelRef.current.send({
-            type: 'broadcast',
-            event: 'game_start',
-            payload: {}
-        });
+        try {
+            // Broadcast to others
+            await channelRef.current.send({
+                type: 'broadcast',
+                event: 'game_start',
+                payload: { startTime: nextStartTime, meta: createRealtimeMeta(++sendSequenceRef.current) }
+            });
+        } finally {
+            lock.release();
+        }
     }, [isHost]);
 
     const updateProgress = useCallback(async (progress: number, wpm: number) => {
@@ -278,7 +338,7 @@ export const useMultiplayer = (user: any) => {
         await channelRef.current.send({
             type: 'broadcast',
             event: 'player_progress',
-            payload: { userId: myId, progress, wpm }
+            payload: { userId: myId, progress, wpm, meta: createRealtimeMeta(++sendSequenceRef.current) }
         });
     }, [user, players, myColor]);
 
@@ -286,12 +346,19 @@ export const useMultiplayer = (user: any) => {
         if (!channelRef.current) return;
         const myId = user?.id || players.find(p => p.color === myColor)?.id;
         if (!myId) return;
+        const lock = mutationLockRef.current.acquire(`race:complete:${myId}`, 30000);
+        if (!lock.acquired) return;
 
-        await channelRef.current.send({
-            type: 'broadcast',
-            event: 'player_complete',
-            payload: { userId: myId, ...results }
-        });
+        try {
+            await channelRef.current.send({
+                type: 'broadcast',
+                event: 'player_complete',
+                payload: { userId: myId, ...results, meta: createRealtimeMeta(++sendSequenceRef.current) }
+            });
+        } catch (err) {
+            lock.release();
+            throw err;
+        }
     }, [user, players, myColor]);
 
     return {

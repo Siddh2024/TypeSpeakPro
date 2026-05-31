@@ -21,6 +21,7 @@ import MultiplayerModal from './MultiplayerModal';
 import MultiplayerResults from './MultiplayerResults';
 import { Loader2 } from 'lucide-react';
 import { Home } from 'lucide-react';
+import { createMutationLock } from '@/lib/mutation-locks';
 
 import {
     COMMON_WORDS, WORDS_EASY, WORDS_HARD,
@@ -84,6 +85,7 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
     const keystrokeData = useRef<{ key: string; latency: number; isError: boolean }[]>([]);
     const lastKeystrokeTime = useRef<number | null>(null);
     const wpmRef = useRef(0);
+    const mutationLockRef = useRef(createMutationLock());
 
     // Automatically open multiplayer modal if prop passed OR if URL has ?room=
     // Automatically open multiplayer modal if prop passed OR if URL has ?room=
@@ -203,6 +205,7 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
         setAccuracy(100);
         setErrorCount(0);
         setHistory([]);
+        mutationLockRef.current.clear();
         keystrokeData.current = [];
         lastKeystrokeTime.current = null;
         wpmRef.current = 0;
@@ -210,6 +213,9 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
     };
 
     const handleComplete = useCallback(() => {
+        const completionLock = mutationLockRef.current.acquire('typing:complete', 30000);
+        if (!completionLock.acquired) return;
+
         setIsFinished(true); // Stop input
         setIsActive(false); // Stop timer/logic
         const endTime = Date.now();
@@ -307,6 +313,9 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
 
 
     const endTest = async () => {
+        const completionLock = mutationLockRef.current.acquire('typing:complete', 30000);
+        if (!completionLock.acquired) return;
+
         setIsActive(false);
         setIsFinished(true);
 
@@ -335,6 +344,12 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
         console.log("EndTest called. User:", user);
 
         if (user?.id) {
+            const saveLock = mutationLockRef.current.acquire(
+                `typing:save:${user.id}:${startTime ?? 'manual'}:${selectedTime}:${mode}`,
+                30000,
+            );
+            if (!saveLock.acquired) return;
+
             console.log("Attempting to save result to Supabase...", {
                 user_id: user.id,
                 wpm,

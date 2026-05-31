@@ -9,6 +9,7 @@ import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { createMutationLock } from '@/lib/mutation-locks';
 
 const VerbalGame = () => {
     const { categoryId } = useParams();
@@ -28,6 +29,7 @@ const VerbalGame = () => {
     const [showWrongAnimation, setShowWrongAnimation] = useState(false);
 
     const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const mutationLockRef = useRef(createMutationLock());
 
     // Initialize Category
     useEffect(() => {
@@ -86,6 +88,7 @@ const VerbalGame = () => {
         setTimeLeft(20);
         setIsAnswered(false);
         setSelectedOption(null);
+        mutationLockRef.current.clear();
     };
 
     const handleTimeUp = () => {
@@ -160,6 +163,12 @@ const VerbalGame = () => {
 
             // Save Result
             if (user?.id) {
+                const lock = mutationLockRef.current.acquire(
+                    `verbal:save:${user.id}:${category.id}:${selectedDifficulty}:${gameQuestions.map(q => q.id).join('-')}`,
+                    30000,
+                );
+                if (!lock.acquired) return;
+
                 const saveScore = async () => {
                     const { error } = await supabase.from('practice_results').insert({
                         user_id: user.id,
