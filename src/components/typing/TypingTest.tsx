@@ -81,6 +81,9 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
 
     const [isFinished, setIsFinished] = useState(false);
     const [history, setHistory] = useState<{ time: number; wpm: number; raw: number }[]>([]);
+    const keystrokeData = useRef<{ key: string; latency: number; isError: boolean }[]>([]);
+    const lastKeystrokeTime = useRef<number | null>(null);
+    const wpmRef = useRef(0);
 
     // Automatically open multiplayer modal if prop passed OR if URL has ?room=
     // Automatically open multiplayer modal if prop passed OR if URL has ?room=
@@ -200,6 +203,9 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
         setAccuracy(100);
         setErrorCount(0);
         setHistory([]);
+        keystrokeData.current = [];
+        lastKeystrokeTime.current = null;
+        wpmRef.current = 0;
         if (inputRef.current) inputRef.current.focus();
     };
 
@@ -270,7 +276,7 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
                 // Record history
                 setHistory(prev => {
                     const timeElapsed = selectedTime - (timeLeft - 1);
-                    return [...prev, { time: timeElapsed, wpm, raw: wpm }];
+                    return [...prev, { time: timeElapsed, wpm: wpmRef.current, raw: wpmRef.current }];
                 });
             }, 1000);
         }
@@ -285,6 +291,7 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
             const currentWpm = Math.round(wordsTyped / timeElapsed) || 0;
 
             setWpm(currentWpm);
+            wpmRef.current = currentWpm;
 
             // Calculate accuracy
             let errors = 0;
@@ -376,15 +383,27 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
+        const now = Date.now();
 
         if (!isActive && value.length === 1) {
-            setStartTime(Date.now());
+            setStartTime(now);
             setIsActive(true);
         }
 
-        setUserInput(value);
+        // Record keystroke latency for the newly typed character
+        if (value.length > userInput.length) {
+            const typedChar = value[value.length - 1];
+            const latency = lastKeystrokeTime.current ? now - lastKeystrokeTime.current : 0;
+            const expectedChar = targetText[value.length - 1];
+            keystrokeData.current.push({
+                key: typedChar.toLowerCase(),
+                latency,
+                isError: typedChar !== expectedChar,
+            });
+        }
+        lastKeystrokeTime.current = now;
 
-        // Auto-scroll logic if needed (already implemented via useEffect below)
+        setUserInput(value);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -674,7 +693,8 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
                         accuracy,
                         errorCount,
                         time: selectedTime,
-                        history
+                        history,
+                        keystrokeData: keystrokeData.current,
                     }}
                     onRestart={resetTest}
                 />

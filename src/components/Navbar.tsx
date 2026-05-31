@@ -96,7 +96,7 @@ const Navbar = ({ forceOpaque = false }: NavbarProps) => {
               href={link.href}
               className={`transition-colors text-sm font-medium ${currentPath === link.href
                 ? "text-cyan-400 border-b-2 border-cyan-400 pb-1"
-                : "text-white/80 hover:text-cyan-400"
+                : "text-foreground/80 hover:text-cyan-400"
                 }`}
               onClick={(e) => handleNavClick(e, link)}
             >
