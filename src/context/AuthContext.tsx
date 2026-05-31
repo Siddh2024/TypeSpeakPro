@@ -109,12 +109,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 if (token) {
                     const userData = decodeAndValidateToken(token);
                     if (!userData) {
+                        // Token is invalid or expired — clean up
                         localStorage.removeItem('google_token');
                         return;
                     }
+
                     setUser(userData);
+
+                    // Then fetch the real DB ID
                     const id = await fetchSupabaseUser(userData.email);
-                    if (id) setUser(prev => prev ? { ...prev, id } : null);
+                    console.log("Supabase ID fetched for auto-login:", id);
+                    if (id) {
+                        setUser(prev => prev ? { ...prev, id } : null);
+                    }
                 }
             } finally {
                 if (isMounted) setIsLoading(false);
