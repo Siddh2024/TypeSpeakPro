@@ -103,23 +103,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         let isMounted = true;
 
         const checkAuth = async () => {
-            const token = localStorage.getItem('google_token');
-            if (token) {
-                const userData = decodeAndValidateToken(token);
-                if (!userData) {
-                    // Token is invalid or expired — clean up
-                    localStorage.removeItem('google_token');
-                    setIsLoading(false);
-                    return;
-                }
+            try {
+                const token = localStorage.getItem('google_token');
+                if (token) {
+                    const userData = decodeAndValidateToken(token);
+                    if (!userData) {
+                        // Token is invalid or expired — clean up
+                        localStorage.removeItem('google_token');
+                        return;
+                    }
 
-                setUser(userData);
+                    setUser(userData);
 
-                // Then fetch the real DB ID
-                const id = await fetchSupabaseUser(userData.email);
-                console.log("Supabase ID fetched for auto-login:", id);
-                if (id) {
-                    setUser(prev => prev ? { ...prev, id } : null);
+                    // Then fetch the real DB ID
+                    const id = await fetchSupabaseUser(userData.email);
+                    console.log("Supabase ID fetched for auto-login:", id);
+                    if (id) {
+                        setUser(prev => prev ? { ...prev, id } : null);
+                    }
                 }
             } finally {
                 if (isMounted) setIsLoading(false);

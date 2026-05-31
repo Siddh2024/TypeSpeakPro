@@ -160,6 +160,14 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
     const containerRef = useRef<HTMLDivElement>(null);
     const navigate = useNavigate();
 
+    // Auto-focus the typing field the moment a multiplayer race begins so
+    // players can start typing immediately without clicking the input first.
+    useEffect(() => {
+        if (multiplayer.gameState === 'racing') {
+            inputRef.current?.focus();
+        }
+    }, [multiplayer.gameState]);
+
     // Initialize test
     useEffect(() => {
         resetTest();

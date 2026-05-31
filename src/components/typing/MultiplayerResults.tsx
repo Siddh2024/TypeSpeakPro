@@ -24,15 +24,16 @@ interface MultiplayerResultsProps {
 }
 
 const MultiplayerResults = ({ open, onOpenChange, multiplayer, onRestart, results }: MultiplayerResultsProps) => {
-    // Sort by rank if available, otherwise by progress/wpm
+    // Rank competitors by performance: completion progress first, then speed
+    // (WPM), then accuracy as the final tie-breaker. This keeps the standings
+    // fair even for players who did not finish (DNF) and have no finish rank.
     const sortedPlayers = [...multiplayer.players].sort((a, b) => {
-        if (a.rank && b.rank) return a.rank - b.rank;
-        if (a.rank) return -1;
-        if (b.rank) return 1;
-        return b.progress - a.progress;
+        if (b.progress !== a.progress) return b.progress - a.progress;
+        if (b.wpm !== a.wpm) return b.wpm - a.wpm;
+        return (b.accuracy ?? 0) - (a.accuracy ?? 0);
     });
 
-    const winner = sortedPlayers.find(p => p.rank === 1);
+    const winner = sortedPlayers[0];
     const isWinner = winner?.id === multiplayer.playerId;
 
     return (
@@ -65,9 +66,9 @@ const MultiplayerResults = ({ open, onOpenChange, multiplayer, onRestart, result
                         {sortedPlayers.map((player, index) => {
                             const isMe = player.id === multiplayer.playerId;
                             let rankIcon = null;
-                            if (player.rank === 1) rankIcon = <Trophy className="w-4 h-4 text-yellow-400" />;
-                            else if (player.rank === 2) rankIcon = <Medal className="w-4 h-4 text-slate-300" />;
-                            else if (player.rank === 3) rankIcon = <Medal className="w-4 h-4 text-amber-600" />;
+                            if (index === 0) rankIcon = <Trophy className="w-4 h-4 text-yellow-400" />;
+                            else if (index === 1) rankIcon = <Medal className="w-4 h-4 text-slate-300" />;
+                            else if (index === 2) rankIcon = <Medal className="w-4 h-4 text-amber-600" />;
                             else rankIcon = <span className="text-xs font-mono text-muted-foreground">#{index + 1}</span>;
 
                             return (
