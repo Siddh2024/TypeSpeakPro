@@ -14,6 +14,7 @@ import { useAuth } from '@/context/AuthContext';
 import { InlineError, SaveIndicator } from '@/components/async';
 import { useAsyncState } from '@/hooks/useAsyncState';
 import { logAsyncError, toUserSafeError } from '@/types/async';
+import { createMutationLock } from '@/lib/mutation-locks';
 
 const ListeningPractice = () => {
     const navigate = useNavigate();
@@ -21,6 +22,7 @@ const ListeningPractice = () => {
     const { user } = useAuth();
     const saveState = useAsyncState<void>();
     const lastScoreRef = React.useRef<{ correctCount: number; total: number } | null>(null);
+    const mutationLockRef = React.useRef(createMutationLock());
 
     // Filter State
     const [selectedLevel, setSelectedLevel] = useState<'All' | 'Easy' | 'Medium' | 'Hard'>('All');
@@ -41,6 +43,7 @@ const ListeningPractice = () => {
         setCurrentScenarioIndex(0); // Reset to first item of new filter
         setUserAnswers({});
         setShowResults(false);
+        mutationLockRef.current.clear();
         cancelSpeech();
     }, [selectedLevel]);
 
@@ -66,6 +69,11 @@ const ListeningPractice = () => {
     const saveListeningScore = async (correctCount: number, total: number) => {
         lastScoreRef.current = { correctCount, total };
         if (!user?.id) return;
+        const lock = mutationLockRef.current.acquire(
+            `listening:save:${user.id}:${scenario?.id ?? currentScenarioIndex}:${correctCount}:${total}`,
+            30000,
+        );
+        if (!lock.acquired) return;
 
         saveState.setStatus('saving');
         try {
@@ -127,6 +135,7 @@ const ListeningPractice = () => {
         if (currentScenarioIndex < filteredScenarios.length - 1) {
             setShowResults(false);
             setUserAnswers({});
+            mutationLockRef.current.clear();
             cancelSpeech();
             setCurrentScenarioIndex(prev => prev + 1);
         } else {

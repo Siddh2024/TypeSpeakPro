@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import Navbar from '@/components/Navbar';
 import { format } from 'date-fns';
@@ -41,6 +41,7 @@ const MotionTr = motion.tr as any;
 const Leaderboard = () => {
     const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
     const [filter, setFilter] = useState<'today' | 'week' | 'all'>('all');
+    const fetchVersionRef = useRef(0);
     const navigate = useNavigate();
 
     const triggerFireworks = () => {
@@ -65,6 +66,7 @@ const Leaderboard = () => {
     };
 
     const fetchLeaderboard = useCallback(async () => {
+            const fetchVersion = ++fetchVersionRef.current;
             const now = new Date();
             let startDate: string | null = null;
 
@@ -122,7 +124,9 @@ const Leaderboard = () => {
                     rank: index + 1
                 }));
 
-            setEntries(sorted);
+            if (fetchVersion === fetchVersionRef.current) {
+                setEntries(sorted);
+            }
     }, [filter]);
 
     const leaderboardAction = useRetryableAction(fetchLeaderboard, {

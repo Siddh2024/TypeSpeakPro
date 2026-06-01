@@ -21,6 +21,7 @@ import MultiplayerModal from './MultiplayerModal';
 import MultiplayerResults from './MultiplayerResults';
 import { Loader2 } from 'lucide-react';
 import { Home } from 'lucide-react';
+import { createMutationLock } from '@/lib/mutation-locks';
 
 import {
     COMMON_WORDS, WORDS_EASY, WORDS_HARD,
@@ -85,6 +86,10 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
     const charErrorsRef = useRef<Record<string, number>>({});
     const lastKeystrokeTimeRef = useRef<number | null>(null);
     const slowBigramsRef = useRef<Record<string, number[]>>({}); // char → array of ms delays
+    const keystrokeData = useRef<{ key: string; latency: number; isError: boolean }[]>([]);
+    const lastKeystrokeTime = useRef<number | null>(null);
+    const wpmRef = useRef(0);
+    const mutationLockRef = useRef(createMutationLock());
 
     // Automatically open multiplayer modal if prop passed OR if URL has ?room=
     // Automatically open multiplayer modal if prop passed OR if URL has ?room=
@@ -164,6 +169,14 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
     const containerRef = useRef<HTMLDivElement>(null);
     const navigate = useNavigate();
 
+    // Auto-focus the typing field the moment a multiplayer race begins so
+    // players can start typing immediately without clicking the input first.
+    useEffect(() => {
+        if (multiplayer.gameState === 'racing') {
+            inputRef.current?.focus();
+        }
+    }, [multiplayer.gameState]);
+
     // Initialize test
     useEffect(() => {
         resetTest();
@@ -199,10 +212,17 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
         charErrorsRef.current = {};
         lastKeystrokeTimeRef.current = null;
         slowBigramsRef.current = {};
+        mutationLockRef.current.clear();
+        keystrokeData.current = [];
+        lastKeystrokeTime.current = null;
+        wpmRef.current = 0;
         if (inputRef.current) inputRef.current.focus();
     };
 
     const handleComplete = useCallback(() => {
+        const completionLock = mutationLockRef.current.acquire('typing:complete', 30000);
+        if (!completionLock.acquired) return;
+
         setIsFinished(true); // Stop input
         setIsActive(false); // Stop timer/logic
         const endTime = Date.now();
@@ -269,7 +289,7 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
                 // Record history
                 setHistory(prev => {
                     const timeElapsed = selectedTime - (timeLeft - 1);
-                    return [...prev, { time: timeElapsed, wpm, raw: wpm }];
+                    return [...prev, { time: timeElapsed, wpm: wpmRef.current, raw: wpmRef.current }];
                 });
             }, 1000);
         }
@@ -284,6 +304,7 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
             const currentWpm = Math.round(wordsTyped / timeElapsed) || 0;
 
             setWpm(currentWpm);
+            wpmRef.current = currentWpm;
 
             // Calculate accuracy
             let errors = 0;
@@ -299,6 +320,9 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
 
 
     const endTest = async () => {
+        const completionLock = mutationLockRef.current.acquire('typing:complete', 30000);
+        if (!completionLock.acquired) return;
+
         setIsActive(false);
         setIsFinished(true);
 
@@ -327,6 +351,12 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
         console.log("EndTest called. User:", user);
 
         if (user?.id) {
+            const saveLock = mutationLockRef.current.acquire(
+                `typing:save:${user.id}:${startTime ?? 'manual'}:${selectedTime}:${mode}`,
+                30000,
+            );
+            if (!saveLock.acquired) return;
+
             console.log("Attempting to save result to Supabase...", {
                 user_id: user.id,
                 wpm,
@@ -394,9 +424,10 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
+        const now = Date.now();
 
         if (!isActive && value.length === 1) {
-            setStartTime(Date.now());
+            setStartTime(now);
             setIsActive(true);
         }
 
@@ -422,6 +453,19 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
             }
             lastKeystrokeTimeRef.current = now;
         }
+
+        // Record keystroke latency for the newly typed character
+        if (value.length > userInput.length) {
+            const typedChar = value[value.length - 1];
+            const latency = lastKeystrokeTime.current ? now - lastKeystrokeTime.current : 0;
+            const expectedChar = targetText[value.length - 1];
+            keystrokeData.current.push({
+                key: typedChar.toLowerCase(),
+                latency,
+                isError: typedChar !== expectedChar,
+            });
+        }
+        lastKeystrokeTime.current = now;
 
         setUserInput(value);
     };
@@ -713,7 +757,8 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
                         accuracy,
                         errorCount,
                         time: selectedTime,
-                        history
+                        history,
+                        keystrokeData: keystrokeData.current,
                     }}
                     onRestart={resetTest}
                 />

@@ -10,10 +10,12 @@ interface RaceTrackProps {
 }
 
 const RaceTrack = ({ players, currentUserId }: RaceTrackProps) => {
-    // Sort players: Finished players first (by Rank), then by Progress descending
+    // Sort players by performance: progress first, then speed (WPM), then
+    // accuracy as the tie-breaker so the standings reflect true performance.
     const sortedPlayers = [...players].sort((a, b) => {
-        if (a.progress === 100 && b.progress === 100) return (a.rank || 999) - (b.rank || 999);
-        return b.progress - a.progress;
+        if (b.progress !== a.progress) return b.progress - a.progress;
+        if (b.wpm !== a.wpm) return b.wpm - a.wpm;
+        return (b.accuracy ?? 0) - (a.accuracy ?? 0);
     });
 
     return (

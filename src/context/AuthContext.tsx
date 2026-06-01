@@ -19,6 +19,7 @@ interface AuthContextType {
     authError: AsyncErrorMetadata | null;
     retryAuth: () => void;
     login: (token: string) => void;
+    loginWithGithub: () => Promise<void>;
     logout: () => void;
     isLoginModalOpen: boolean;
     openLoginModal: () => void;
@@ -103,23 +104,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         let isMounted = true;
 
         const checkAuth = async () => {
-            const token = localStorage.getItem('google_token');
-            if (token) {
-                const userData = decodeAndValidateToken(token);
-                if (!userData) {
-                    // Token is invalid or expired — clean up
-                    localStorage.removeItem('google_token');
-                    setIsLoading(false);
-                    return;
-                }
+            try {
+                const token = localStorage.getItem('google_token');
+                if (token) {
+                    const userData = decodeAndValidateToken(token);
+                    if (!userData) {
+                        // Token is invalid or expired — clean up
+                        localStorage.removeItem('google_token');
+                        return;
+                    }
 
-                setUser(userData);
+                    setUser(userData);
 
-                // Then fetch the real DB ID
-                const id = await fetchSupabaseUser(userData.email);
-                console.log("Supabase ID fetched for auto-login:", id);
-                if (id) {
-                    setUser(prev => prev ? { ...prev, id } : null);
+                    // Then fetch the real DB ID
+                    const id = await fetchSupabaseUser(userData.email);
+                    console.log("Supabase ID fetched for auto-login:", id);
+                    if (id) {
+                        setUser(prev => prev ? { ...prev, id } : null);
+                    }
                 }
             } finally {
                 if (isMounted) setIsLoading(false);
@@ -179,9 +181,48 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
+    const loginWithGithub = async () => {
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: 'github',
+            options: { redirectTo: window.location.origin + '/dashboard' },
+        });
+        if (error) toast.error('GitHub login failed. Please try again.');
+    };
+
+    // Handle Supabase OAuth session (e.g. after GitHub redirect)
+    useEffect(() => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+            if (session?.user) {
+                const { id, email, user_metadata } = session.user;
+                const userData: User = {
+                    id,
+                    name: user_metadata?.full_name ?? user_metadata?.user_name ?? email ?? '',
+                    email: email ?? '',
+                    picture: user_metadata?.avatar_url ?? '',
+                    sub: id,
+                };
+                setUser(userData);
+                closeLoginModal();
+                try {
+                    await supabase.from('users').upsert({
+                        id,
+                        email: userData.email,
+                        name: userData.name,
+                        picture: userData.picture,
+                        google_sub: userData.sub,
+                    }, { onConflict: 'email' });
+                } catch (e) {
+                    logAsyncError('auth.syncOAuthUser', e);
+                }
+            }
+        });
+        return () => subscription.unsubscribe();
+    }, []);
+
     const logout = () => {
         setUser(null);
         localStorage.removeItem('google_token');
+        supabase.auth.signOut();
         toast.info("Logged out successfully.");
     };
 
@@ -193,6 +234,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             authError,
             retryAuth,
             login,
+            loginWithGithub,
             logout,
             isLoginModalOpen,
             openLoginModal,
