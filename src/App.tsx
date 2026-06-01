@@ -18,6 +18,7 @@ import WritingPractice from "./pages/communication/WritingPractice";
 import ListeningPractice from "./pages/communication/ListeningPractice";
 import VerbalPracticeLanding from "./pages/VerbalPracticeLanding";
 import VerbalGame from "./pages/VerbalGame";
+import AdaptiveCoach from "./pages/AdaptiveCoach";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
@@ -74,6 +75,7 @@ const App = () => (
                 path="/verbal-practice/:categoryId"
                 element={<VerbalGame />}
               />
+              <Route path="/adaptive-coach" element={<AdaptiveCoach />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

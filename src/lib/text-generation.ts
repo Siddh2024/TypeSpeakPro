@@ -150,6 +150,27 @@ export const generateSentences = (wordCountEstimate: number, difficulty: Difficu
     return text;
 };
 
+/**
+ * Generate words that heavily feature the given focus characters.
+ * Used by the adaptive coach to create targeted drills.
+ */
+export const generateFocusedWords = (focusChars: string[], count = 60): string => {
+    if (focusChars.length === 0) return generateWords(count, false, false, 'medium');
+
+    // Pull words from all pools that contain any of the focus chars
+    const allWords = [...COMMON_WORDS, ...WORDS_EASY, ...WORDS_HARD];
+    const focused = allWords.filter(w =>
+        focusChars.some(ch => w.toLowerCase().includes(ch.toLowerCase()))
+    );
+    const pool = focused.length >= 10 ? focused : allWords;
+
+    const words = [];
+    for (let i = 0; i < count; i++) {
+        words.push(pool[Math.floor(Math.random() * pool.length)]);
+    }
+    return words.join(' ');
+};
+
 export const applyTextTransformations = (text: string, includeNumbers: boolean, includePunctuation: boolean) => {
     if (!includeNumbers && !includePunctuation) return text;
 
