@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import {
     Area,
     AreaChart,
@@ -44,6 +44,7 @@ const KEYBOARD_ROWS = [
 
 const KeyHeatmap = ({ keystrokeData }: { keystrokeData: { key: string; latency: number; isError: boolean }[] }) => {
     // Aggregate avg latency per key (ignore first keystroke with 0 latency)
+    const { keyStats, minL, maxL, slowestKeys } = useMemo(() => {
     const keyStats = keystrokeData.reduce<Record<string, { total: number; count: number; errors: number }>>((acc, k) => {
         if (k.latency === 0) return acc;
         if (!acc[k.key]) acc[k.key] = { total: 0, count: 0, errors: 0 };
@@ -54,8 +55,15 @@ const KeyHeatmap = ({ keystrokeData }: { keystrokeData: { key: string; latency: 
     }, {});
 
     const latencies = Object.values(keyStats).map(v => v.total / v.count);
-    const minL = Math.min(...latencies);
-    const maxL = Math.max(...latencies);
+    const minL = latencies.length > 0 ? Math.min(...latencies) : 0;
+    const maxL = latencies.length > 0 ? Math.max(...latencies) : 0;
+    const slowestKeys = Object.entries(keyStats)
+        .map(([key, s]) => ({ key, avg: Math.round(s.total / s.count), errors: s.errors }))
+        .sort((a, b) => b.avg - a.avg)
+        .slice(0, 5);
+
+    return { keyStats, minL, maxL, slowestKeys };
+    }, [keystrokeData]);
 
     const getColor = (key: string) => {
         const s = keyStats[key];
@@ -66,11 +74,6 @@ const KeyHeatmap = ({ keystrokeData }: { keystrokeData: { key: string; latency: 
         if (norm < 0.66) return 'bg-yellow-500/30 text-yellow-300 border-yellow-500/40';
         return 'bg-red-500/30 text-red-300 border-red-500/40';
     };
-
-    const slowestKeys = Object.entries(keyStats)
-        .map(([key, s]) => ({ key, avg: Math.round(s.total / s.count), errors: s.errors }))
-        .sort((a, b) => b.avg - a.avg)
-        .slice(0, 5);
 
     if (keystrokeData.length < 5) return null;
 

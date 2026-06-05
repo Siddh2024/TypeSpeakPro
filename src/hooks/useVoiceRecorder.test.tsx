@@ -24,4 +24,40 @@ describe('useVoiceRecorder', () => {
     expect(result.current.error?.title).toBe('Microphone access failed');
     expect(result.current.status).toBe('retryable-error');
   });
+
+  it('prevents duplicate starts while microphone permission is pending', async () => {
+    let resolveStream: (stream: MediaStream) => void = () => {};
+    const getUserMedia = vi.fn(() => new Promise<MediaStream>(resolve => {
+      resolveStream = resolve;
+    }));
+
+    Object.defineProperty(navigator, 'mediaDevices', {
+      value: { getUserMedia },
+      configurable: true,
+    });
+    vi.stubGlobal('MediaRecorder', class {
+      static isTypeSupported = vi.fn(() => true);
+      state = 'inactive';
+      ondataavailable: ((event: { data: Blob }) => void) | null = null;
+      onstop: (() => void) | null = null;
+      start = vi.fn();
+      stop = vi.fn(() => this.onstop?.());
+    });
+
+    const { result } = renderHook(() => useVoiceRecorder());
+
+    act(() => {
+      void result.current.startRecording();
+      void result.current.startRecording();
+    });
+
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveStream({
+        getTracks: () => [{ stop: vi.fn() }],
+      } as unknown as MediaStream);
+      await Promise.resolve();
+    });
+  });
 });

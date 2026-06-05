@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { EmptyState, InlineError, SectionSkeleton } from '@/components/async';
 import { useRetryableAction } from '@/hooks/useRetryableAction';
+import { timeOperationDev, warnRepeatedDev } from '@/lib/perf-dev';
 
 const Dashboard = () => {
     const navigate = useNavigate();
@@ -33,6 +34,7 @@ const Dashboard = () => {
 
     const fetchDashboardData = useCallback(async () => {
         if (!user?.id) return;
+        warnRepeatedDev(`dashboard:${user.id}`, '[perf] repeated dashboard fetch');
         const fetchVersion = ++fetchVersionRef.current;
 
         // Fetch all results for the user for general stats
@@ -59,21 +61,36 @@ const Dashboard = () => {
 
         setFullHistory(allResults);
 
-        // 1. Calculate Aggregates
-        const totalTests = allResults.length;
-        const avgWpm = totalTests > 0 ? Math.round(allResults.reduce((acc, curr) => acc + curr.wpm, 0) / totalTests) : 0;
-        const avgAccuracy = totalTests > 0 ? Math.round(allResults.reduce((acc, curr) => acc + curr.accuracy, 0) / totalTests) : 0;
-        const totalTimeSeconds = allResults.reduce((acc, curr) => acc + curr.time_duration, 0);
+        const aggregateStats = timeOperationDev('dashboard.aggregate', 16, () => {
+            const totalTests = allResults.length;
+            let wpmTotal = 0;
+            let accuracyTotal = 0;
+            let totalTimeSeconds = 0;
+            let bestWpm = 0;
 
-        const bestWpm = totalTests > 0 ? Math.max(...allResults.map(r => r.wpm)) : 0;
+            for (const result of allResults) {
+                wpmTotal += result.wpm;
+                accuracyTotal += result.accuracy;
+                totalTimeSeconds += result.time_duration;
+                bestWpm = Math.max(bestWpm, result.wpm);
+            }
+
+            return {
+                totalTests,
+                avgWpm: totalTests > 0 ? Math.round(wpmTotal / totalTests) : 0,
+                avgAccuracy: totalTests > 0 ? Math.round(accuracyTotal / totalTests) : 0,
+                totalTimeSeconds,
+                bestWpm,
+            };
+        });
 
         // Calculate Rank (how many results are better than my best?)
         let rank = 0;
-        if (bestWpm > 0) {
+        if (aggregateStats.bestWpm > 0) {
             const { count } = await supabase
                 .from('test_results')
                 .select('id', { count: 'exact', head: true })
-                .gt('wpm', bestWpm);
+                .gt('wpm', aggregateStats.bestWpm);
 
             rank = (count || 0) + 1;
         }
@@ -81,56 +98,72 @@ const Dashboard = () => {
         if (fetchVersion !== fetchVersionRef.current) return;
 
         // Calculate Practice Points & Accuracy
-        const voiceResults = practiceResults ? practiceResults.filter((r: any) => r.practice_type === 'listening') : [];
-        const voicePoints = voiceResults.reduce((acc: number, curr: any) => acc + (curr.score || 0), 0);
-        const voiceAccuracy = voiceResults.length > 0
-            ? Math.round(voiceResults.reduce((acc: number, curr: any) => acc + (curr.accuracy || 0), 0) / voiceResults.length)
-            : 0;
+        const practiceStats = timeOperationDev('dashboard.practiceAggregate', 16, () => {
+            let voicePoints = 0;
+            let voiceAccuracyTotal = 0;
+            let voiceCount = 0;
+            let verbalPoints = 0;
+            let verbalAccuracyTotal = 0;
+            let verbalCount = 0;
 
-        const verbalResults = practiceResults ? practiceResults.filter((r: any) => r.practice_type === 'verbal') : [];
-        const verbalPoints = verbalResults.reduce((acc: number, curr: any) => acc + (curr.score || 0), 0);
-        const verbalAccuracy = verbalResults.length > 0
-            ? Math.round(verbalResults.reduce((acc: number, curr: any) => acc + (curr.accuracy || 0), 0) / verbalResults.length)
-            : 0;
+            for (const result of practiceResults ?? []) {
+                if (result.practice_type === 'listening') {
+                    voiceCount += 1;
+                    voicePoints += result.score || 0;
+                    voiceAccuracyTotal += result.accuracy || 0;
+                } else if (result.practice_type === 'verbal') {
+                    verbalCount += 1;
+                    verbalPoints += result.score || 0;
+                    verbalAccuracyTotal += result.accuracy || 0;
+                }
+            }
+
+            return {
+                voicePoints,
+                voiceAccuracy: voiceCount > 0 ? Math.round(voiceAccuracyTotal / voiceCount) : 0,
+                verbalPoints,
+                verbalAccuracy: verbalCount > 0 ? Math.round(verbalAccuracyTotal / verbalCount) : 0,
+            };
+        });
 
         setStats({
-            avgWpm,
-            avgAccuracy,
-            totalTime: totalTimeSeconds,
-            testsCompleted: totalTests,
-            bestWpm,
+            avgWpm: aggregateStats.avgWpm,
+            avgAccuracy: aggregateStats.avgAccuracy,
+            totalTime: aggregateStats.totalTimeSeconds,
+            testsCompleted: aggregateStats.totalTests,
+            bestWpm: aggregateStats.bestWpm,
             rank,
-            voicePoints,
-            voiceAccuracy,
-            verbalPoints,
-            verbalAccuracy
+            ...practiceStats
         });
 
         // 2. Prepare Weekly Chart Data
         const today = new Date();
-        const dailyStats = [];
+        const dailyStats = timeOperationDev('dashboard.weeklyData', 16, () => {
+            const stats = [];
 
-        for (let i = 6; i >= 0; i--) {
-            const date = subDays(today, i);
-            const start = startOfDay(date).toISOString();
-            const end = endOfDay(date).toISOString();
+            for (let i = 6; i >= 0; i--) {
+                const date = subDays(today, i);
+                const start = startOfDay(date).toISOString();
+                const end = endOfDay(date).toISOString();
 
-            const dayResults = allResults.filter(r => r.created_at >= start && r.created_at <= end);
+                const dayResults = allResults.filter(r => r.created_at >= start && r.created_at <= end);
 
-            const dayAvgWpm = dayResults.length > 0
-                ? Math.round(dayResults.reduce((acc, curr) => acc + curr.wpm, 0) / dayResults.length)
-                : 0;
+                const dayAvgWpm = dayResults.length > 0
+                    ? Math.round(dayResults.reduce((acc, curr) => acc + curr.wpm, 0) / dayResults.length)
+                    : 0;
 
-            const dayAvgAcc = dayResults.length > 0
-                ? Math.round(dayResults.reduce((acc, curr) => acc + curr.accuracy, 0) / dayResults.length)
-                : 0;
+                const dayAvgAcc = dayResults.length > 0
+                    ? Math.round(dayResults.reduce((acc, curr) => acc + curr.accuracy, 0) / dayResults.length)
+                    : 0;
 
-            dailyStats.push({
-                day: format(date, 'EEE'),
-                wpm: dayAvgWpm,
-                accuracy: dayAvgAcc
-            });
-        }
+                stats.push({
+                    day: format(date, 'EEE'),
+                    wpm: dayAvgWpm,
+                    accuracy: dayAvgAcc
+                });
+            }
+            return stats;
+        });
         setWeeklyData(dailyStats);
 
         // 3. Recent Activity (Top 5)

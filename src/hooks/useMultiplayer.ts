@@ -61,6 +61,7 @@ export const useMultiplayer = (user: any) => {
     const eventClockRef = useRef(new Map<string, number>());
     const mutationLockRef = useRef(createMutationLock());
     const sendSequenceRef = useRef(0);
+    const lastProgressSendRef = useRef({ progress: 0, wpm: 0, sentAt: 0 });
 
     // Generate a random color for the player
     const myColor = useRef(`hsl(${Math.random() * 360}, 70%, 50%)`).current;
@@ -332,19 +333,31 @@ export const useMultiplayer = (user: any) => {
 
     const updateProgress = useCallback(async (progress: number, wpm: number) => {
         if (!channelRef.current) return;
-        const myId = user?.id || players.find(p => p.color === myColor)?.id;
+        const myId = playerId || user?.id || players.find(p => p.color === myColor)?.id;
         if (!myId) return;
+
+        const now = Date.now();
+        const last = lastProgressSendRef.current;
+        if (
+            progress < 100 &&
+            now - last.sentAt < 250 &&
+            Math.abs(progress - last.progress) < 1 &&
+            Math.abs(wpm - last.wpm) < 2
+        ) {
+            return;
+        }
+        lastProgressSendRef.current = { progress, wpm, sentAt: now };
 
         await channelRef.current.send({
             type: 'broadcast',
             event: 'player_progress',
             payload: { userId: myId, progress, wpm, meta: createRealtimeMeta(++sendSequenceRef.current) }
         });
-    }, [user, players, myColor]);
+    }, [user, players, myColor, playerId]);
 
     const completeRace = useCallback(async (results: { wpm: number, accuracy: number, time: number }) => {
         if (!channelRef.current) return;
-        const myId = user?.id || players.find(p => p.color === myColor)?.id;
+        const myId = playerId || user?.id || players.find(p => p.color === myColor)?.id;
         if (!myId) return;
         const lock = mutationLockRef.current.acquire(`race:complete:${myId}`, 30000);
         if (!lock.acquired) return;
@@ -359,7 +372,7 @@ export const useMultiplayer = (user: any) => {
             lock.release();
             throw err;
         }
-    }, [user, players, myColor]);
+    }, [user, players, myColor, playerId]);
 
     return {
         roomCode,

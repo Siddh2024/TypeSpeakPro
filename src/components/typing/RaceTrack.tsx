@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Player } from '@/hooks/useMultiplayer';
 import { cn } from '@/lib/utils';
 import { Flag, Trophy } from 'lucide-react';
@@ -12,11 +12,11 @@ interface RaceTrackProps {
 const RaceTrack = ({ players, currentUserId }: RaceTrackProps) => {
     // Sort players by performance: progress first, then speed (WPM), then
     // accuracy as the tie-breaker so the standings reflect true performance.
-    const sortedPlayers = [...players].sort((a, b) => {
+    const sortedPlayers = useMemo(() => [...players].sort((a, b) => {
         if (b.progress !== a.progress) return b.progress - a.progress;
         if (b.wpm !== a.wpm) return b.wpm - a.wpm;
         return (b.accuracy ?? 0) - (a.accuracy ?? 0);
-    });
+    }), [players]);
 
     return (
         <div className="w-full bg-black/40 border border-white/5 rounded-xl p-6 space-y-6 mb-8 animate-in fade-in slide-in-from-top-4 backdrop-blur-sm">
@@ -134,4 +134,4 @@ const RaceTrack = ({ players, currentUserId }: RaceTrackProps) => {
     );
 };
 
-export default RaceTrack;
+export default React.memo(RaceTrack);

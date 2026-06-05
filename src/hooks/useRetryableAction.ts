@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { AsyncStatus } from '@/types/async';
 import { logAsyncError, toUserSafeError } from '@/types/async';
 import { useAsyncState } from './useAsyncState';
@@ -19,30 +19,38 @@ export const useRetryableAction = <TArgs extends unknown[], TResult>(
   const async = useAsyncState<TResult>();
   const lastArgsRef = useRef<TArgs | null>(null);
   const inFlightRef = useRef(false);
+  const optionsRef = useRef(options);
+
+  useEffect(() => {
+    optionsRef.current = options;
+  }, [options]);
 
   const run = useCallback(async (...args: TArgs) => {
     if (inFlightRef.current) return undefined;
 
     lastArgsRef.current = args;
     inFlightRef.current = true;
-    async.setStatus(options.loadingStatus ?? 'loading');
+    const currentOptions = optionsRef.current;
+    async.setStatus(currentOptions.loadingStatus ?? 'loading');
 
     try {
       const result = await action(...args);
-      async.setData(result, options.successStatus ?? 'success');
-      options.onSuccess?.(result);
+      const latestOptions = optionsRef.current;
+      async.setData(result, latestOptions.successStatus ?? 'success');
+      latestOptions.onSuccess?.(result);
       return result;
     } catch (error) {
-      logAsyncError(options.scope ?? 'retryable-action', error);
+      const latestOptions = optionsRef.current;
+      logAsyncError(latestOptions.scope ?? 'retryable-action', error);
       async.setError(toUserSafeError(error, {
-        title: options.errorTitle,
-        message: options.errorMessage,
+        title: latestOptions.errorTitle,
+        message: latestOptions.errorMessage,
       }));
       return undefined;
     } finally {
       inFlightRef.current = false;
     }
-  }, [action, async, options]);
+  }, [action, async]);
 
   const retry = useCallback(() => {
     if (!lastArgsRef.current) return undefined;
