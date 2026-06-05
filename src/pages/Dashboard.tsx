@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Activity, Zap, Keyboard, Trophy, Calendar, User, Mail, Shield, BookOpen, Mic } from "lucide-react";
+import { Activity, Zap, Keyboard, Trophy, Calendar, User, Mail, Shield, BookOpen, Mic, Brain } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import Navbar from "@/components/Navbar";
 import { supabase } from "@/lib/supabase";
@@ -306,6 +306,32 @@ const Dashboard = () => {
                             <p className="text-xs text-muted-foreground mt-1">Total Points</p>
                             <p className="text-xs text-green-400 mt-1">Avg Accuracy: {stats.verbalAccuracy}%</p>
                         </CardContent>
+                    </Card>
+
+                    {/* Adaptive Coach Card */}
+                    <Card
+                        className="bg-card border-teal-500/20 backdrop-blur-sm hover:bg-teal-500/5 transition-all duration-300 group cursor-pointer col-span-1 md:col-span-2 lg:col-span-4"
+                        onClick={() => navigate('/adaptive-coach')}
+                        onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') navigate('/adaptive-coach'); }}
+                        role="button"
+                        tabIndex={0}
+                    >
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-xl bg-teal-500/10 border border-teal-500/20">
+                                    <Brain className="h-5 w-5 text-teal-400" />
+                                </div>
+                                <div>
+                                    <CardTitle className="text-base font-bold text-foreground group-hover:text-teal-400 transition-colors">
+                                        Adaptive Coach
+                                    </CardTitle>
+                                    <CardDescription className="text-xs text-muted-foreground">
+                                        Personalized drills, weak-key heatmap &amp; improvement tips based on your sessions
+                                    </CardDescription>
+                                </div>
+                            </div>
+                            <span className="text-xs text-teal-400 font-medium group-hover:underline">View insights →</span>
+                        </CardHeader>
                     </Card>
                 </div>
                 )}

@@ -82,6 +82,10 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
 
     const [isFinished, setIsFinished] = useState(false);
     const [history, setHistory] = useState<{ time: number; wpm: number; raw: number }[]>([]);
+    // Adaptive coach: track per-character errors and keystroke timing
+    const charErrorsRef = useRef<Record<string, number>>({});
+    const lastKeystrokeTimeRef = useRef<number | null>(null);
+    const slowBigramsRef = useRef<Record<string, number[]>>({}); // char → array of ms delays
     const keystrokeData = useRef<{ key: string; latency: number; isError: boolean }[]>([]);
     const lastKeystrokeTime = useRef<number | null>(null);
     const wpmRef = useRef(0);
@@ -205,6 +209,9 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
         setAccuracy(100);
         setErrorCount(0);
         setHistory([]);
+        charErrorsRef.current = {};
+        lastKeystrokeTimeRef.current = null;
+        slowBigramsRef.current = {};
         mutationLockRef.current.clear();
         keystrokeData.current = [];
         lastKeystrokeTime.current = null;
@@ -374,11 +381,30 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
 
                 if (error) {
                     console.error("Supabase SAVE ERROR:", error);
-                    // Don't toast error to user if it's just a config issue, maybe silent fail or debug log
-                    // toast.error(`Failed to save history: ${error.message}`); 
                 } else {
                     console.log("Result saved successfully!", data);
                     toast.success("Result saved to history!");
+
+                    // Save char-level analytics for adaptive coach (best-effort, silent fail)
+                    if (Object.keys(charErrorsRef.current).length > 0) {
+                        // Compute avg delay per key from timing data
+                        const slowKeys: Record<string, number> = {};
+                        Object.entries(slowBigramsRef.current).forEach(([key, delays]) => {
+                            if (delays.length > 0) {
+                                slowKeys[key] = Math.round(delays.reduce((a, b) => a + b, 0) / delays.length);
+                            }
+                        });
+
+                        supabase.from('typing_analytics').insert({
+                            user_id: user.id,
+                            char_errors: charErrorsRef.current,
+                            slow_keys: slowKeys,
+                            wpm: wpm,
+                            accuracy: accuracy,
+                        }).then(({ error: analyticsError }) => {
+                            if (analyticsError) console.warn("Analytics save skipped:", analyticsError.message);
+                        });
+                    }
                 }
             } catch (err) {
                 console.error("Unexpected error saving result:", err);
@@ -403,6 +429,29 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
         if (!isActive && value.length === 1) {
             setStartTime(now);
             setIsActive(true);
+        }
+
+        // Track the newly typed character for adaptive coach
+        if (value.length > userInput.length) {
+            const newCharIndex = value.length - 1;
+            const typedChar = value[newCharIndex];
+            const expectedChar = targetText[newCharIndex];
+
+            // Error tracking
+            if (typedChar !== expectedChar && expectedChar) {
+                const key = expectedChar.toLowerCase();
+                charErrorsRef.current[key] = (charErrorsRef.current[key] || 0) + 1;
+            }
+
+            // Hesitation / keystroke timing
+            const now = Date.now();
+            if (lastKeystrokeTimeRef.current !== null && expectedChar) {
+                const delay = now - lastKeystrokeTimeRef.current;
+                const key = expectedChar.toLowerCase();
+                if (!slowBigramsRef.current[key]) slowBigramsRef.current[key] = [];
+                slowBigramsRef.current[key].push(delay);
+            }
+            lastKeystrokeTimeRef.current = now;
         }
 
         // Record keystroke latency for the newly typed character
