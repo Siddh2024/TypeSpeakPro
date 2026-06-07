@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Player } from '@/hooks/useMultiplayer';
@@ -27,14 +27,15 @@ const MultiplayerResults = ({ open, onOpenChange, multiplayer, onRestart, result
     // Rank competitors by performance: completion progress first, then speed
     // (WPM), then accuracy as the final tie-breaker. This keeps the standings
     // fair even for players who did not finish (DNF) and have no finish rank.
-    const sortedPlayers = [...multiplayer.players].sort((a, b) => {
+    const sortedPlayers = useMemo(() => [...multiplayer.players].sort((a, b) => {
         if (b.progress !== a.progress) return b.progress - a.progress;
         if (b.wpm !== a.wpm) return b.wpm - a.wpm;
         return (b.accuracy ?? 0) - (a.accuracy ?? 0);
-    });
+    }), [multiplayer.players]);
 
     const winner = sortedPlayers[0];
     const isWinner = winner?.id === multiplayer.playerId;
+    const maxWpm = useMemo(() => Math.max(...sortedPlayers.map(pl => pl.wpm), 80), [sortedPlayers]);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -117,7 +118,6 @@ const MultiplayerResults = ({ open, onOpenChange, multiplayer, onRestart, result
                         <div className="bg-black/20 rounded-lg p-4 space-y-4">
                             {sortedPlayers.map(p => {
                                 const isMe = p.id === multiplayer.playerId;
-                                const maxWpm = Math.max(...sortedPlayers.map(pl => pl.wpm), 80); // Baseline 80
                                 const width = Math.min(100, (p.wpm / maxWpm) * 100);
 
                                 return (

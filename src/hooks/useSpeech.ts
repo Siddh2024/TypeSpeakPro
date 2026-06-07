@@ -72,6 +72,13 @@ export const useSpeech = (language: string = 'en-US'): UseSpeechReturn => {
     const hasRecognitionSupport = isSpeechRecognitionSupported();
     const hasSynthesisSupport = isSpeechSynthesisSupported();
 
+    const clearRecognitionTimeout = useCallback(() => {
+        if (recognitionTimeoutRef.current) {
+            clearTimeout(recognitionTimeoutRef.current);
+            recognitionTimeoutRef.current = null;
+        }
+    }, []);
+
     useEffect(() => {
         if (!hasRecognitionSupport) return;
 
@@ -117,7 +124,6 @@ export const useSpeech = (language: string = 'en-US'): UseSpeechReturn => {
             setIsListening(false);
             startedRef.current = false;
             clearRecognitionTimeout();
-            setStatus(prev => prev === 'recording' ? 'idle' : prev);
         };
 
         recognitionRef.current = recognition;
@@ -142,6 +148,7 @@ export const useSpeech = (language: string = 'en-US'): UseSpeechReturn => {
                 setError(null);
                 recognitionRef.current.start();
                 setIsListening(true);
+                startedRef.current = true;
             } catch (err) {
                 const message = err instanceof Error ? err.message : 'Failed to start speech recognition.';
                 console.error('Error starting recognition:', err);
@@ -155,7 +162,6 @@ export const useSpeech = (language: string = 'en-US'): UseSpeechReturn => {
             recognitionRef.current.stop();
             setIsListening(false);
             startedRef.current = false;
-            setStatus('idle');
             clearRecognitionTimeout();
         }
     }, [clearRecognitionTimeout, isListening]);

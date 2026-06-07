@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import Navbar from '@/components/Navbar';
 import { format } from 'date-fns';
@@ -9,6 +9,7 @@ import confetti from 'canvas-confetti';
 import UserAvatar from '@/components/UserAvatar';
 import { EmptyState, InlineError } from '@/components/async';
 import { useRetryableAction } from '@/hooks/useRetryableAction';
+import { timeOperationDev, warnRepeatedDev } from '@/lib/perf-dev';
 
 interface LeaderboardEntry {
     rank: number;
@@ -66,6 +67,7 @@ const Leaderboard = () => {
     };
 
     const fetchLeaderboard = useCallback(async () => {
+            warnRepeatedDev(`leaderboard:${filter}`, `[perf] repeated leaderboard fetch for ${filter}`);
             const fetchVersion = ++fetchVersionRef.current;
             const now = new Date();
             let startDate: string | null = null;
@@ -116,13 +118,13 @@ const Leaderboard = () => {
                 }
             });
 
-            const sorted = Object.values(uniqueEntries)
+            const sorted = timeOperationDev('leaderboard.rank', 16, () => Object.values(uniqueEntries)
                 .sort((a: any, b: any) => b.wpm - a.wpm)
                 .slice(0, 50)
                 .map((entry: any, index: number) => ({
                     ...entry,
                     rank: index + 1
-                }));
+                })));
 
             if (fetchVersion === fetchVersionRef.current) {
                 setEntries(sorted);
@@ -147,7 +149,7 @@ const Leaderboard = () => {
         return <span className="font-mono text-muted-foreground font-bold">#{rank}</span>;
     };
 
-    const containerVariants = {
+    const containerVariants = useMemo(() => ({
         hidden: { opacity: 0 },
         visible: {
             opacity: 1,
@@ -155,9 +157,9 @@ const Leaderboard = () => {
                 staggerChildren: 0.05
             }
         }
-    };
+    }), []);
 
-    const itemVariants = {
+    const itemVariants = useMemo(() => ({
         hidden: { opacity: 0, x: -20, filter: 'blur(10px)' },
         visible: {
             opacity: 1,
@@ -165,7 +167,7 @@ const Leaderboard = () => {
             filter: 'blur(0px)',
             transition: { type: 'spring', stiffness: 100 }
         }
-    };
+    }), []);
 
     return (
         <div className="min-h-screen bg-background text-foreground font-sans selection:bg-teal-500/30 overflow-x-hidden">

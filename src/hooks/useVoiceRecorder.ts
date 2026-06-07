@@ -74,11 +74,16 @@ export const useVoiceRecorder = ({
   const [transcript, setTranscript] = useState(''); // Add transcript state
   const transcriptRef = useRef(''); // Ref to hold latest transcript without causing re-renders in closure
   const savedCallback = useRef(onRecordingComplete); // Ref for saved callback to avoid stale closures
+  const savedTimeUpdate = useRef(onTimeUpdate);
 
   // Update saved callback
   useEffect(() => {
     savedCallback.current = onRecordingComplete;
   }, [onRecordingComplete]);
+
+  useEffect(() => {
+    savedTimeUpdate.current = onTimeUpdate;
+  }, [onTimeUpdate]);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recognitionRef = useRef<any>(null); // Speech recognition ref
@@ -158,8 +163,8 @@ export const useVoiceRecorder = ({
     }
 
     // Prevent duplicate recording sessions
-    if (isRecording) {
-      console.warn('Recording is already in progress.');
+    if (isRecording || isStartingRef.current) {
+      if (import.meta.env.DEV) console.warn('Recording is already in progress.');
       return;
     }
 
@@ -260,6 +265,7 @@ export const useVoiceRecorder = ({
       }
 
       setIsRecording(true);
+      isStartingRef.current = false;
       setStatus('recording');
 
       // 4. Start Timer
@@ -267,7 +273,7 @@ export const useVoiceRecorder = ({
       timerRef.current = setInterval(() => {
         remaining -= 1;
         setTimeRemaining(remaining);
-        onTimeUpdate?.(remaining);
+        savedTimeUpdate.current?.(remaining);
 
         if (remaining <= 0) {
           stopRecording();
@@ -278,9 +284,10 @@ export const useVoiceRecorder = ({
       setHasPermission(false);
       setError(mapMediaError(err));
       setStatus('retryable-error');
+      isStartingRef.current = false;
       console.error('Error accessing microphone:', err);
     }
-  }, [maxDuration, isRecording, onRecordingComplete, onTimeUpdate, stopRecording]);
+  }, [maxDuration, isRecording, stopRecording]);
 
   return {
     isRecording,
