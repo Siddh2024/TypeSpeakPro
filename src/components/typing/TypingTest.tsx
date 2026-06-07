@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -22,6 +21,7 @@ import MultiplayerResults from './MultiplayerResults';
 import { Loader2 } from 'lucide-react';
 import { Home } from 'lucide-react';
 import { createMutationLock } from '@/lib/mutation-locks';
+import { useSessionHistory } from '@/hooks/useSessionHistory';
 
 import {
     COMMON_WORDS, WORDS_EASY, WORDS_HARD,
@@ -41,7 +41,9 @@ interface TypingTestProps {
 
 const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, initialConfig }: TypingTestProps) => {
     const { user } = useAuth();
+    const { saveResult } = useSessionHistory();
     const [theme, setTheme] = useState("neon");
+
     // Use AI hook if aiMode is true, otherwise standard multiplayer
     // Cast to explicit 'any' to bypass strict return type mismatch between hooks for now, 
     // as we just need the common interface in this component
@@ -240,6 +242,9 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
         setWpm(finalWpm);
         setAccuracy(finalAccuracy); // Update local state
 
+        // Save to localStorage (persists for guests and logged-in users)
+        saveResult({ wpm: finalWpm, accuracy: finalAccuracy, mode });
+
         // Submit to Multiplayer if active
         if (multiplayer.roomCode && multiplayer.completeRace) {
             multiplayer.completeRace({
@@ -253,7 +258,7 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
         if (onComplete) {
             onComplete({ wpm: finalWpm, accuracy: finalAccuracy, errorCount });
         }
-    }, [userInput, targetText, startTime, selectedTime, errorCount, multiplayer, onComplete]);
+    }, [userInput, targetText, startTime, selectedTime, errorCount, multiplayer, onComplete, saveResult, mode]);
 
     // Check for completion
     useEffect(() => {
@@ -385,6 +390,9 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
                     console.log("Result saved successfully!", data);
                     toast.success("Result saved to history!");
 
+                    // Save to localStorage as well for instant local access
+                    saveResult({ wpm, accuracy, mode });
+
                     // Save char-level analytics for adaptive coach (best-effort, silent fail)
                     if (Object.keys(charErrorsRef.current).length > 0) {
                         // Compute avg delay per key from timing data
@@ -415,6 +423,8 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
             if (user) {
                 toast.warning("Not connected to database (User ID missing).");
             }
+            // Guest user — save to localStorage so progress is not lost
+            saveResult({ wpm, accuracy, mode });
         }
 
         if (onComplete) {
@@ -729,9 +739,6 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
                 </div>
             )}
 
-            {/* Check for completion */}
-            {/* Logic moved to useEffect below to allow handleComplete access */}
-
             {/* Results Modal */}
             {multiplayer.roomCode ? (
                 <MultiplayerResults
@@ -789,13 +796,6 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
                         transition: "all 0.1s ease-out"
                     }}
                 >
-                    {/* Cursor is actually handled inside renderText via a span, but if we need a global one we can add it. 
-                        Looking at renderText (line 403), it adds a cursor span inside the active char. 
-                        So we might just need the text container. Previous code had a separate cursor overlay too in some versions, but let's stick to renderText first. 
-                        Wait, earlier step 271 showed a Cursor Overlay div. Let's add it back if it looks good, but renderText has `isCurrent` logic.
-                        Actually, renderText logic at line 421 adds a blinking cursor. 
-                        So just restoring renderText() container should be enough.
-                     */}
                 </div>
 
                 {/* Input Field - Always focusable when not finished, but logic handles actual 'typing' */}
@@ -816,7 +816,7 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
                 />
             </div>
 
-            {/* Results Modal Overlay */}
+            {/* Theme Switcher */}
             <div className="mb-4 flex gap-2 justify-center">
                 <button
                     onClick={() => setTheme("neon")}
