@@ -10,6 +10,7 @@ import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { EmptyState, InlineError, SectionSkeleton } from '@/components/async';
 import { useRetryableAction } from '@/hooks/useRetryableAction';
 import { timeOperationDev, warnRepeatedDev } from '@/lib/perf-dev';
+import { aggregatePracticeRecords, aggregateTypingRecords, rankBestTypingRecords } from '@/lib/analytics';
 
 const Dashboard = () => {
     const navigate = useNavigate();
@@ -59,72 +60,28 @@ const Dashboard = () => {
 
         if (fetchVersion !== fetchVersionRef.current) return;
 
-        setFullHistory(allResults);
+        const aggregateStats = timeOperationDev('dashboard.aggregate', 16, () => aggregateTypingRecords(allResults));
 
-        const aggregateStats = timeOperationDev('dashboard.aggregate', 16, () => {
-            const totalTests = allResults.length;
-            let wpmTotal = 0;
-            let accuracyTotal = 0;
-            let totalTimeSeconds = 0;
-            let bestWpm = 0;
-
-            for (const result of allResults) {
-                wpmTotal += result.wpm;
-                accuracyTotal += result.accuracy;
-                totalTimeSeconds += result.time_duration;
-                bestWpm = Math.max(bestWpm, result.wpm);
-            }
-
-            return {
-                totalTests,
-                avgWpm: totalTests > 0 ? Math.round(wpmTotal / totalTests) : 0,
-                avgAccuracy: totalTests > 0 ? Math.round(accuracyTotal / totalTests) : 0,
-                totalTimeSeconds,
-                bestWpm,
-            };
-        });
+        setFullHistory(aggregateStats.records);
 
         // Calculate Rank (how many results are better than my best?)
         let rank = 0;
         if (aggregateStats.bestWpm > 0) {
-            const { count } = await supabase
+            const { data: rankResults, error: rankError } = await supabase
                 .from('test_results')
-                .select('id', { count: 'exact', head: true })
-                .gt('wpm', aggregateStats.bestWpm);
+                .select('user_id, wpm, accuracy, created_at')
+                .gt('wpm', 0)
+                .limit(1000);
 
-            rank = (count || 0) + 1;
+            if (rankError) throw rankError;
+            const ranked = rankBestTypingRecords(rankResults ?? []);
+            rank = ranked.findIndex((record) => record.user_id === user.id) + 1;
         }
 
         if (fetchVersion !== fetchVersionRef.current) return;
 
         // Calculate Practice Points & Accuracy
-        const practiceStats = timeOperationDev('dashboard.practiceAggregate', 16, () => {
-            let voicePoints = 0;
-            let voiceAccuracyTotal = 0;
-            let voiceCount = 0;
-            let verbalPoints = 0;
-            let verbalAccuracyTotal = 0;
-            let verbalCount = 0;
-
-            for (const result of practiceResults ?? []) {
-                if (result.practice_type === 'listening') {
-                    voiceCount += 1;
-                    voicePoints += result.score || 0;
-                    voiceAccuracyTotal += result.accuracy || 0;
-                } else if (result.practice_type === 'verbal') {
-                    verbalCount += 1;
-                    verbalPoints += result.score || 0;
-                    verbalAccuracyTotal += result.accuracy || 0;
-                }
-            }
-
-            return {
-                voicePoints,
-                voiceAccuracy: voiceCount > 0 ? Math.round(voiceAccuracyTotal / voiceCount) : 0,
-                verbalPoints,
-                verbalAccuracy: verbalCount > 0 ? Math.round(verbalAccuracyTotal / verbalCount) : 0,
-            };
-        });
+        const practiceStats = timeOperationDev('dashboard.practiceAggregate', 16, () => aggregatePracticeRecords(practiceResults ?? []));
 
         setStats({
             avgWpm: aggregateStats.avgWpm,
@@ -146,20 +103,13 @@ const Dashboard = () => {
                 const start = startOfDay(date).toISOString();
                 const end = endOfDay(date).toISOString();
 
-                const dayResults = allResults.filter(r => r.created_at >= start && r.created_at <= end);
-
-                const dayAvgWpm = dayResults.length > 0
-                    ? Math.round(dayResults.reduce((acc, curr) => acc + curr.wpm, 0) / dayResults.length)
-                    : 0;
-
-                const dayAvgAcc = dayResults.length > 0
-                    ? Math.round(dayResults.reduce((acc, curr) => acc + curr.accuracy, 0) / dayResults.length)
-                    : 0;
+                const dayResults = aggregateStats.records.filter(r => r.created_at >= start && r.created_at <= end);
+                const dayAggregate = aggregateTypingRecords(dayResults);
 
                 stats.push({
                     day: format(date, 'EEE'),
-                    wpm: dayAvgWpm,
-                    accuracy: dayAvgAcc
+                    wpm: dayAggregate.avgWpm,
+                    accuracy: dayAggregate.avgAccuracy
                 });
             }
             return stats;
@@ -167,7 +117,7 @@ const Dashboard = () => {
         setWeeklyData(dailyStats);
 
         // 3. Recent Activity (Top 5)
-        setRecentActivity(allResults.slice(0, 5));
+        setRecentActivity(aggregateStats.records.slice(0, 5));
     }, [user?.id]);
 
     const dashboardAction = useRetryableAction(fetchDashboardData, {

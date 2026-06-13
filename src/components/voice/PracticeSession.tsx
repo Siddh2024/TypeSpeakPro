@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useSpeech } from '@/hooks/useSpeech';
 import { PROMPTS_DATA } from '@/data/voice-practice';
 import { useNavigate } from 'react-router-dom';
+import { calculateWpm } from '@/lib/analytics';
 
 interface PracticeSessionProps {
     config: {
@@ -85,13 +86,15 @@ const PracticeSession = ({ config, onComplete, onCancel }: PracticeSessionProps)
         stopListening();
         setIsActive(false);
         // Calculate basic stats
-        const wordCount = transcript.trim().split(/\s+/).length;
-        const wpm = Math.round((wordCount / (60 - timeLeft)) * 60) || 0;
+        const words = transcript.trim().split(/\s+/).filter(Boolean);
+        const wordCount = words.length;
+        const duration = 60 - timeLeft;
+        const wpm = calculateWpm(wordCount * 5, duration);
 
         onComplete({
             transcript,
             wpm,
-            duration: 60 - timeLeft,
+            duration,
             wordCount
         });
     };

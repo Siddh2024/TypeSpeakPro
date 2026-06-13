@@ -15,6 +15,7 @@ import { InlineError, SaveIndicator } from '@/components/async';
 import { useAsyncState } from '@/hooks/useAsyncState';
 import { logAsyncError, toUserSafeError } from '@/types/async';
 import { createMutationLock } from '@/lib/mutation-locks';
+import { calculatePercent, sanitizeMetricRecord } from '@/lib/analytics';
 
 const ListeningPractice = () => {
     const navigate = useNavigate();
@@ -78,11 +79,17 @@ const ListeningPractice = () => {
         saveState.setStatus('saving');
         try {
             const points = correctCount * 10;
+            const record = sanitizeMetricRecord({
+                score: points,
+                accuracy: calculatePercent(correctCount, total),
+            });
+            if (!record) throw new Error('INVALID_LISTENING_METRICS');
+
             const { error } = await supabase.from('practice_results').insert({
                 user_id: user.id,
                 practice_type: 'listening',
-                score: points,
-                accuracy: Math.round((correctCount / total) * 100)
+                score: record.score,
+                accuracy: record.accuracy
             });
             if (error) throw error;
             saveState.setData(undefined, 'success');

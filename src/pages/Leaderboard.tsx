@@ -10,6 +10,7 @@ import UserAvatar from '@/components/UserAvatar';
 import { EmptyState, InlineError } from '@/components/async';
 import { useRetryableAction } from '@/hooks/useRetryableAction';
 import { timeOperationDev, warnRepeatedDev } from '@/lib/perf-dev';
+import { rankBestTypingRecords } from '@/lib/analytics';
 
 interface LeaderboardEntry {
     rank: number;
@@ -106,20 +107,7 @@ const Leaderboard = () => {
 
             if (error) throw error;
 
-            // Client-side deduplication
-            const uniqueEntries: { [key: string]: any } = {};
-            data?.forEach((entry: any) => {
-                if (!uniqueEntries[entry.user_id]) {
-                    uniqueEntries[entry.user_id] = entry;
-                } else {
-                    if (entry.wpm > uniqueEntries[entry.user_id].wpm) {
-                        uniqueEntries[entry.user_id] = entry;
-                    }
-                }
-            });
-
-            const sorted = timeOperationDev('leaderboard.rank', 16, () => Object.values(uniqueEntries)
-                .sort((a: any, b: any) => b.wpm - a.wpm)
+            const sorted = timeOperationDev('leaderboard.rank', 16, () => rankBestTypingRecords(data ?? [])
                 .slice(0, 50)
                 .map((entry: any, index: number) => ({
                     ...entry,
