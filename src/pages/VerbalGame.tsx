@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { createMutationLock } from '@/lib/mutation-locks';
+import { calculatePercent, sanitizeMetricRecord } from '@/lib/analytics';
 
 const VerbalGame = () => {
     const { categoryId } = useParams();
@@ -170,14 +171,20 @@ const VerbalGame = () => {
                 if (!lock.acquired) return;
 
                 const saveScore = async () => {
+                    const record = sanitizeMetricRecord({
+                        score,
+                        accuracy: calculatePercent(score, gameQuestions.length * 10),
+                    });
+                    if (!record) return;
+
                     const { error } = await supabase.from('practice_results').insert({
                         user_id: user.id,
                         practice_type: 'verbal', // or 'voice' mapping? User requested "voive". 'verbal' is usually vocal/speech or vocabulary. This component is 'VerbalGame', seems like vocabulary MCQ. User said "voive practice and vocal practice".
                         // Wait, "Voice Practice" is likely the `VoicePractice.tsx` landing page, which links to `Communication` (Listening?) and `HR`.
                         // "Vocal Practice" button, user said.
                         // I will save this as 'verbal' and 'listening' and assume the Dashboard maps them correctly.
-                        score: score,
-                        accuracy: Math.round((score / (gameQuestions.length * 10)) * 100) // approximate based on score logic
+                        score: record.score,
+                        accuracy: record.accuracy
                     });
                     if (error) console.error('Error saving score:', error);
                     else toast.success(`Score saved!`);
@@ -273,7 +280,7 @@ const VerbalGame = () => {
 
     // Results Screen
     if (gameState === 'finished') {
-        const percentage = Math.round((score / (gameQuestions.length * 10)) * 100);
+        const percentage = calculatePercent(score, gameQuestions.length * 10);
 
         return (
             <div className="min-h-screen flex items-center justify-center bg-background p-4 animate-in fade-in zoom-in duration-300">

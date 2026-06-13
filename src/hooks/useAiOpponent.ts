@@ -159,13 +159,16 @@ export const useAiOpponent = (user: any) => {
     // User updates their own progress
     const updateProgress = (progress: number, wpm: number) => {
         setPlayers(prev => prev.map(p =>
-            p.id === playerId ? { ...p, progress, wpm } : p
+            p.id === playerId ? { ...p, progress: Math.max(p.progress, progress), wpm } : p
         ));
     };
 
     // User finishes
     const completeRace = (results: { wpm: number, accuracy: number, time: number }) => {
         setPlayers(prev => {
+            const existing = prev.find(p => p.id === playerId);
+            if (existing?.rank || existing?.progress === 100) return prev;
+
             const alreadyFinished = prev.filter(p => p.progress >= 100).length;
             const myRank = alreadyFinished + 1;
 

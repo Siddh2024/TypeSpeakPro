@@ -22,6 +22,7 @@ import { Loader2 } from 'lucide-react';
 import { Home } from 'lucide-react';
 import { createMutationLock } from '@/lib/mutation-locks';
 import { useSessionHistory } from '@/hooks/useSessionHistory';
+import { calculateAccuracy, calculateWpm, createAnalyticsSessionId, sanitizeMetricRecord } from '@/lib/analytics';
 
 import {
     COMMON_WORDS, WORDS_EASY, WORDS_HARD,
@@ -92,6 +93,7 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
     const lastKeystrokeTime = useRef<number | null>(null);
     const wpmRef = useRef(0);
     const mutationLockRef = useRef(createMutationLock());
+    const sessionIdRef = useRef<string>(createAnalyticsSessionId());
 
     // Automatically open multiplayer modal if prop passed OR if URL has ?room=
     // Automatically open multiplayer modal if prop passed OR if URL has ?room=
@@ -215,6 +217,7 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
         lastKeystrokeTimeRef.current = null;
         slowBigramsRef.current = {};
         mutationLockRef.current.clear();
+        sessionIdRef.current = createAnalyticsSessionId();
         keystrokeData.current = [];
         lastKeystrokeTime.current = null;
         wpmRef.current = 0;
@@ -228,22 +231,15 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
         setIsFinished(true); // Stop input
         setIsActive(false); // Stop timer/logic
         const endTime = Date.now();
-        const durationMinutes = (endTime - (startTime || endTime)) / 60000;
-        const wordsTyped = userInput.length / 5;
-        const finalWpm = Math.round(wordsTyped / durationMinutes) || 0;
-
-        // Calculate Accuracy Manually to ensure non-zero
-        let correctChars = 0;
-        for (let i = 0; i < userInput.length; i++) {
-            if (userInput[i] === targetText[i]) correctChars++;
-        }
-        const finalAccuracy = userInput.length > 0 ? Math.round((correctChars / userInput.length) * 100) : 100;
+        const durationSeconds = (endTime - (startTime || endTime)) / 1000;
+        const finalWpm = calculateWpm(userInput.length, durationSeconds);
+        const finalAccuracy = calculateAccuracy(userInput, targetText);
 
         setWpm(finalWpm);
         setAccuracy(finalAccuracy); // Update local state
 
         // Save to localStorage (persists for guests and logged-in users)
-        saveResult({ wpm: finalWpm, accuracy: finalAccuracy, mode });
+        saveResult({ wpm: finalWpm, accuracy: finalAccuracy, mode, sessionId: sessionIdRef.current });
 
         // Submit to Multiplayer if active
         if (multiplayer.roomCode && multiplayer.completeRace) {
@@ -269,9 +265,8 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
         } else if (multiplayer.roomCode && multiplayer.gameState === 'racing') {
             // Update progress in multiplayer
             // WPM Calculation for progress
-            const timeElapsed = (Date.now() - (startTime || Date.now())) / 1000 / 60;
-            const wordsTyped = userInput.length / 5;
-            const currentWpm = timeElapsed > 0 ? Math.round(wordsTyped / timeElapsed) : 0;
+            const timeElapsed = (Date.now() - (startTime || Date.now())) / 1000;
+            const currentWpm = calculateWpm(userInput.length, timeElapsed);
             const progress = Math.min(100, (userInput.length / targetText.length) * 100);
 
             multiplayer.updateProgress(progress, currentWpm);
@@ -304,20 +299,18 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
     // Update WPM and Accuracy live
     useEffect(() => {
         if (isActive && startTime) {
-            const timeElapsed = (Date.now() - startTime) / 1000 / 60; // in minutes
-            const wordsTyped = userInput.length / 5;
-            const currentWpm = Math.round(wordsTyped / timeElapsed) || 0;
+            const timeElapsed = (Date.now() - startTime) / 1000;
+            const currentWpm = calculateWpm(userInput.length, timeElapsed);
 
             setWpm(currentWpm);
             wpmRef.current = currentWpm;
 
-            // Calculate accuracy
             let errors = 0;
             for (let i = 0; i < userInput.length; i++) {
                 if (userInput[i] !== targetText[i]) errors++;
             }
-            const acc = Math.max(0, Math.round(((userInput.length - errors) / userInput.length) * 100));
-            setAccuracy(acc || 100);
+            const acc = calculateAccuracy(userInput, targetText);
+            setAccuracy(acc);
             setErrorCount(errors);
         }
     }, [userInput, startTime, isActive]);
@@ -330,23 +323,24 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
 
         setIsActive(false);
         setIsFinished(true);
+        const finalWpm = calculateWpm(userInput.length, selectedTime);
+        const finalAccuracy = calculateAccuracy(userInput, targetText);
+        const finalRecord = sanitizeMetricRecord({
+            wpm: finalWpm,
+            accuracy: finalAccuracy,
+            time_duration: selectedTime,
+        });
+        if (!finalRecord) return;
+
+        setWpm(finalRecord.wpm ?? 0);
+        setAccuracy(finalRecord.accuracy ?? 100);
 
         // Calculate final stats for multiplayer submission if time ran out
         if (multiplayer.roomCode && multiplayer.completeRace) {
-            const wordsTyped = userInput.length / 5;
-            const durationMinutes = selectedTime / 60; // Use selected time as full duration since time ran out
-            const finalWpm = Math.round(wordsTyped / durationMinutes) || 0;
-
-            let correctChars = 0;
-            for (let i = 0; i < userInput.length; i++) {
-                if (userInput[i] === targetText[i]) correctChars++;
-            }
-            const finalAccuracy = userInput.length > 0 ? Math.round((correctChars / userInput.length) * 100) : 100;
-
-            console.log("Time ran out, submitting to multiplayer:", { finalWpm, finalAccuracy });
+            console.log("Time ran out, submitting to multiplayer:", finalRecord);
             multiplayer.completeRace({
-                wpm: finalWpm,
-                accuracy: finalAccuracy,
+                wpm: finalRecord.wpm ?? 0,
+                accuracy: finalRecord.accuracy ?? 100,
                 time: selectedTime,
                 errorCount
             });
@@ -364,8 +358,8 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
 
             console.log("Attempting to save result to Supabase...", {
                 user_id: user.id,
-                wpm,
-                accuracy,
+                wpm: finalRecord.wpm,
+                accuracy: finalRecord.accuracy,
                 errorCount,
                 time: selectedTime,
                 mode
@@ -376,8 +370,8 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
                     .from('test_results')
                     .insert({
                         user_id: user.id,
-                        wpm: wpm,
-                        accuracy: accuracy,
+                        wpm: finalRecord.wpm,
+                        accuracy: finalRecord.accuracy,
                         error_count: errorCount,
                         time_duration: selectedTime,
                         mode: mode
@@ -391,7 +385,7 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
                     toast.success("Result saved to history!");
 
                     // Save to localStorage as well for instant local access
-                    saveResult({ wpm, accuracy, mode });
+                    saveResult({ wpm: finalRecord.wpm ?? 0, accuracy: finalRecord.accuracy ?? 100, mode, sessionId: sessionIdRef.current });
 
                     // Save char-level analytics for adaptive coach (best-effort, silent fail)
                     if (Object.keys(charErrorsRef.current).length > 0) {
@@ -407,8 +401,8 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
                             user_id: user.id,
                             char_errors: charErrorsRef.current,
                             slow_keys: slowKeys,
-                            wpm: wpm,
-                            accuracy: accuracy,
+                            wpm: finalRecord.wpm,
+                            accuracy: finalRecord.accuracy,
                         }).then(({ error: analyticsError }) => {
                             if (analyticsError) console.warn("Analytics save skipped:", analyticsError.message);
                         });
@@ -424,11 +418,11 @@ const TypingTest = ({ onComplete, initialMultiplayer = false, aiMode = false, in
                 toast.warning("Not connected to database (User ID missing).");
             }
             // Guest user — save to localStorage so progress is not lost
-            saveResult({ wpm, accuracy, mode });
+            saveResult({ wpm: finalRecord.wpm ?? 0, accuracy: finalRecord.accuracy ?? 100, mode, sessionId: sessionIdRef.current });
         }
 
         if (onComplete) {
-            onComplete({ wpm, accuracy, errorCount });
+            onComplete({ wpm: finalRecord.wpm ?? 0, accuracy: finalRecord.accuracy ?? 100, errorCount });
         }
     };
 
