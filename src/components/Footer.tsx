@@ -108,7 +108,7 @@ const Footer = () => {
                         <div className="col-span-2 lg:col-span-2">
                             <Link to="/" className="flex items-center gap-2 mb-4">
                                 <div className="relative">
-                                    <img src="logo.jpg" alt="logo" className="h-20 w-20 object-contain rounded" />
+                                    <img src="/logo.jpg" alt="logo" className="h-20 w-20 object-contain rounded" />
                                 </div>
                                 <span className="text-xl font-bold">
                                     <span className="text-foreground">Type</span>
